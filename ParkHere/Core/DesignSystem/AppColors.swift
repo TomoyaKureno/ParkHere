@@ -1,0 +1,30 @@
+//
+//  AppColors.swift
+//  ParkHere
+//
+//  Created by Marzandi Zahran Affandi Leta on 04/06/26.
+//
+
+import SwiftUI
+
+extension Color {
+    // MARK: - Brand Color
+    static let brandPrimaryBlue = Color(red: 10/255, green: 132/255, blue: 255/255)
+    static let brandAccentGreen = Color(red: 19/255, green: 208/255, blue: 110/255)
+    static let brandAccentOrange = Color(red: 255, green: 138, blue: 61)
+    static let brandAccentBlue = Color(red: 0/255, green: 46/255, blue: 92/255)
+    static let brandAccentLightBlue = Color(red: 0/255, green: 86/255, blue: 173/255)
+    
+    // MARK: - Surface Color
+    static let surfacePrimaryBlack = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 11/255, green: 11/255, blue: 11/255, alpha: 1)
+        : UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
+    })
+    
+    static let surfaceSecondaryWhite = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
+        : UIColor(red: 11/255, green: 11/255, blue: 11/255, alpha: 1)
+    })
+}
