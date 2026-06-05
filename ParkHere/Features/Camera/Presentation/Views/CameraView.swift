@@ -5,54 +5,39 @@
 //  Created by Fathariq Dimas on 01/06/26.
 //
 
+import AVFoundation
 import SwiftUI
 
 struct CameraView: View {
     @StateObject var cameraManager = CameraManager()
     @State private var pinchStartZoom: CGFloat = 1.0
-    
-    private var zoomFactors = [1.0, 2.0, 5.0]
-    
+    @State private var isPinching = false
+
     var body: some View {
         ZStack {
-            CameraPreview(session: cameraManager.session)
-                .ignoresSafeArea()
-                .gesture(
-                    MagnificationGesture()
-                        .onChanged { value in
-                            let newZoom = pinchStartZoom * value
-                            cameraManager.setZoomFactor(newZoom)
-                        }
-                        .onEnded { _ in
-                            pinchStartZoom = cameraManager.zoomFactor
-                        }
-                )
-                .onAppear {
-                    pinchStartZoom = cameraManager.zoomFactor
-                    cameraManager.startSession()
-                }
-                .onDisappear {
-                    cameraManager.stopSession()
-                }
-            
+            CameraPreview(session: cameraManager.session) { devicePoint, _ in
+                cameraManager.focus(at: devicePoint)
+            }
+            .ignoresSafeArea()
+
             VStack {
                 HStack {
                     HStack(spacing: 16) {
-                        Image(systemName: "car.fill")
+                        Image(systemName: "mappin")
                             .font(.title2.bold())
                             .foregroundStyle(.blue)
                         VStack(alignment: .leading) {
-                            Text("Capture Parking Spot")
+                            Text("Capture Waypoint")
                                 .font(.title2.bold())
-                                
-                            Text("Snap the nearest pillar, zone sign, or elevator.")
+
+                            Text("Capture multiple landmarks to help guide you back to your parking spot")
                                 .font(.subheadline)
                         }
                         .foregroundStyle(.white)
                     }
-                    
+
                     Spacer(minLength: 32)
-                    
+
                     Button {} label: {
                         Image(systemName: "questionmark")
                             .font(.subheadline.bold())
@@ -80,14 +65,20 @@ struct CameraView: View {
                         endPoint: .bottom
                     )
                 )
-                
+
                 Spacer()
-                
+
                 VStack(spacing: 24) {
                     VStack(spacing: 12) {
                         HStack(spacing: 16) {
-                            ForEach(zoomFactors, id: \.self) { zoomFactor in
-                                zoomButton(zoomFactor: zoomFactor)
+                            if cameraManager.cameraPosition == .back {
+                                ForEach(Array(cameraManager.zoomFactors.enumerated()), id: \.offset) { index, zoomFactor in
+                                    zoomButton(
+                                        zoomFactor: zoomFactor,
+                                        zoomMax: index + 1 < cameraManager.zoomFactors.count ? cameraManager.zoomFactors[index + 1] : cameraManager.maxZoomFactor,
+                                        isLast: index == cameraManager.zoomFactors.count - 1
+                                    )
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -97,31 +88,19 @@ struct CameraView: View {
                             } label: {
                                 Image(systemName: cameraManager.flashMode.iconName)
                                     .font(.footnote)
-                                    .foregroundStyle(.yellow)
+                                    .foregroundStyle(cameraManager.flashMode == .off ? .white : .yellow)
                                     .padding(8)
                                     .background(.black.opacity(0.25))
                                     .clipShape(Circle())
                             }
                             .disabled(!cameraManager.isFlashAvailable)
                         }
-                        
+
                         Text("Location data saves automatically")
                             .font(.footnote)
                             .foregroundStyle(.white)
                     }
-                    
-                    Button {
-                        cameraManager.takePhoto()
-                    } label: {
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 64, height: 64)
-                    }
-                    .padding(8)
-                    .overlay {
-                        Circle().stroke(.white, lineWidth: 4)
-                    }
-                    
+
                     HStack {
                         Button {} label: {
                             Image(systemName: "xmark")
@@ -134,9 +113,23 @@ struct CameraView: View {
                         Spacer()
 
                         Button {
+                            cameraManager.takePhoto()
+                        } label: {
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 64, height: 64)
+                        }
+                        .padding(8)
+                        .overlay {
+                            Circle().stroke(.white, lineWidth: 4)
+                        }
+
+                        Spacer()
+
+                        Button {
                             cameraManager.switchCamera()
                         } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
                                 .bold()
                                 .foregroundStyle(.white)
                                 .frame(width: 56, height: 56)
@@ -144,6 +137,16 @@ struct CameraView: View {
                         }
                     }
                     .padding(.horizontal, 24)
+
+                    Button {} label: {
+                        Text("Done")
+                            .foregroundStyle(.white)
+                            .font(.headline)
+                            .padding(16)
+                            .frame(width: 272)
+                    }
+                    .background(.blue)
+                    .clipShape(Capsule())
                 }
                 .padding(.horizontal)
                 .padding(.top, 48)
@@ -163,20 +166,62 @@ struct CameraView: View {
             }
             .ignoresSafeArea(edges: .bottom)
         }
-    }
-    
-    func zoomButton(zoomFactor: Double) -> some View {
-        Button {
-            cameraManager.setZoomFactor(zoomFactor, animated: true)
-        } label: {
-            Text("1x")
-                .font(.footnote)
-                .foregroundStyle(cameraManager.zoomFactor == zoomFactor ? .yellow : .white)
-                .padding(8)
-                .background(cameraManager.zoomFactor == zoomFactor ? .black.opacity(0.25) : .clear)
-                .clipShape(Circle())
+        .onAppear {
+            pinchStartZoom = cameraManager.zoomFactor
+            cameraManager.startSession()
         }
-        .disabled(cameraManager.maxZoomFactor < zoomFactor)
+        .onChange(of: cameraManager.zoomFactor) { _, newValue in
+            guard !isPinching else { return }
+            pinchStartZoom = newValue
+        }
+        .onDisappear {
+            cameraManager.stopSession()
+        }
+        .gesture(
+            MagnificationGesture()
+                .onChanged { value in
+                    guard cameraManager.cameraPosition == .back else { return }
+
+                    isPinching = true
+                    let newZoom = pinchStartZoom * value
+                    cameraManager.setZoomFactor(newZoom)
+                }
+                .onEnded { _ in
+                    isPinching = false
+                    pinchStartZoom = cameraManager.zoomFactor
+                }
+        )
+    }
+
+    func zoomButton(zoomFactor: CGFloat, zoomMax: CGFloat, isLast: Bool) -> some View {
+        let currentZoom = roundedZoomFactor(cameraManager.zoomFactor)
+        let buttonZoom = roundedZoomFactor(zoomFactor)
+        let nextButtonZoom = roundedZoomFactor(zoomMax)
+        let isSelected = currentZoom >= buttonZoom
+            && (isLast ? currentZoom <= nextButtonZoom : currentZoom < nextButtonZoom)
+        let displayed = isSelected ? currentZoom : buttonZoom
+
+        let epsilon = 1e-9
+        let isInteger = abs(displayed.truncatingRemainder(dividingBy: 1)) < epsilon
+
+        return (
+            Button {
+                cameraManager.setZoomFactor(zoomFactor, animated: true)
+                pinchStartZoom = zoomFactor
+            } label: {
+                Text("\(displayed, format: .number.precision(.fractionLength(isInteger ? 0 : 1)))x")
+                    .font(.footnote)
+                    .foregroundStyle(isSelected ? .yellow : .white)
+                    .padding(8)
+                    .background(isSelected ? .black.opacity(0.25) : .clear)
+                    .clipShape(Circle())
+            }
+            .disabled(zoomFactor < cameraManager.minZoomFactor || cameraManager.maxZoomFactor < zoomFactor)
+        )
+    }
+
+    private func roundedZoomFactor(_ factor: CGFloat) -> CGFloat {
+        (factor * 10).rounded()/10
     }
 }
 
