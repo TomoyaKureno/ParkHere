@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct HomeView: View {
+    @State private var hasSavedLocation: Bool = false
+    
     var body: some View {
         ZStack {
             Color.surfacePrimaryBlack
@@ -24,19 +26,25 @@ struct HomeView: View {
                         description: "We'll capture your current location so you can easily navigate back to your parking."
                     )
                     
-                    HomeCardView(hasSavedLocation: false)
+                    HomeCardView(hasSavedLocation: $hasSavedLocation)
                 }
                 
-                Button {
-                    print("Tapped")
-                } label: {
-                    Text("Save Parking Spot")
-                        .foregroundStyle(Color.white)
-                        .bold()
-                        .frame(height: 50)
-                        .padding(.horizontal, 34)
-                        .background(Color.brandPrimaryBlue)
-                        .clipShape(.capsule)
+                VStack (spacing: 8) {
+                    Button {
+                        hasSavedLocation = true
+                    } label: {
+                        Text("Save Parking Spot")
+                    }
+                    .buttonStyle(.primaryStyle)
+                    .disabled(hasSavedLocation)
+                    
+                    Button {
+                        hasSavedLocation = false
+                    } label: {
+                        Text("Find Parking Spot")
+                    }
+                    .buttonStyle(.primaryStyle)
+                    .disabled(!hasSavedLocation)
                 }
 
                 
@@ -46,11 +54,11 @@ struct HomeView: View {
     }
 }
 
-#Preview {
+#Preview("Preview Light Mode") {
     HomeView()
 }
 
-#Preview {
+#Preview("Preview Dark Mode") {
     HomeView()
         .preferredColorScheme(.dark)
 }

@@ -8,22 +8,22 @@
 import SwiftUI
 
 struct HomeCardView: View {
-    @State var hasSavedLocation: Bool
+    @Binding var hasSavedLocation: Bool
 
     var body: some View {
         VStack (spacing: 32) {
             HStack {
                 HStack (alignment: .center, spacing: 4) {
                     Image(systemName: "mappin")
-                        .foregroundStyle(Color.surfaceSecondaryWhite)
+                        .foregroundStyle(hasSavedLocation ? Color.brandPrimaryBlue : Color.surfaceSecondaryWhite)
                     
                     if (hasSavedLocation) {
                         Text("Your saved location")
-                            .font(.footnote)
-                            .opacity(0.5)
+                            .font(.footnoteBold)
+                            .foregroundStyle(Color.brandPrimaryBlue)
                     } else {
                         Text("Your current location")
-                            .font(.footnote)
+                            .font(.footnoteBold)
                             .opacity(0.5)
                     }
                     
@@ -40,7 +40,7 @@ struct HomeCardView: View {
                                 .foregroundStyle(Color.surfaceSecondaryWhite)
                             
                             Text("Refresh")
-                                .font(.footnote)
+                                .font(.footnoteBold)
                                 .opacity(0.5)
                                 .foregroundStyle(Color.surfaceSecondaryWhite)
                         }
@@ -56,11 +56,10 @@ struct HomeCardView: View {
                 VStack (alignment: .leading, spacing: 6) {
                     Text("Mega Mall")
                         .foregroundStyle(Color.surfaceSecondaryWhite)
-                        .font(.body)
-                        .bold()
+                        .font(.bodyBold)
                     
                     Text("Jl. Jend. Sudirman No.1, Batam Center, Batam")
-                        .font(.footnote)
+                        .font(.footnoteReg)
                         .foregroundStyle(Color.surfaceSecondaryWhite)
                         .opacity(0.5)
                 }
@@ -74,16 +73,22 @@ struct HomeCardView: View {
     }
 }
 
-#Preview {
-    HomeCardView(hasSavedLocation: false)
+#Preview("Preview Light Mode") {
+    @Previewable @State var hasSavedLocation: Bool = false
+
+    HomeCardView(hasSavedLocation: $hasSavedLocation)
 }
 
-#Preview {
-    HomeCardView(hasSavedLocation: false)
+#Preview("Preview Dark Mode") {
+    @Previewable @State var hasSavedLocation: Bool = false
+
+    HomeCardView(hasSavedLocation: $hasSavedLocation)
         .preferredColorScheme(.dark)
 }
 
-#Preview {
-    HomeCardView(hasSavedLocation: true)
+#Preview("Preview Dark Mode with Saved Location") {
+    @Previewable @State var hasSavedLocation: Bool = true
+
+    HomeCardView(hasSavedLocation: $hasSavedLocation)
         .preferredColorScheme(.dark)
 }
