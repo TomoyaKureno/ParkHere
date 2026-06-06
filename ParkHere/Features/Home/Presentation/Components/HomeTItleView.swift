@@ -14,16 +14,14 @@ struct HomeTItleView: View {
     var body: some View {
         VStack (alignment: .center, spacing: 12) {
             Text(title)
-                .font(.title)
-                .bold()
-                .foregroundStyle(Color.surfaceSecondaryWhite)
+                .font(.titleBold)
                
             Text(description)
-                .font(.subheadline)
+                .font(.subheadlineReg)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Color.surfaceSecondaryWhite)
                 .opacity(0.5)
         }
+        .foregroundStyle(Color.surfaceSecondaryWhite)
         .frame(width: 303)
     }
 }
