@@ -26,7 +26,7 @@ struct ParkHereApp: App {
 
     var body: some Scene {
         WindowGroup {
-            CameraView()
+            RootView()
         }
 //        .modelContainer(sharedModelContainer)
     }
