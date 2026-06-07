@@ -9,16 +9,20 @@ import AVFoundation
 import SwiftUI
 
 struct CameraView: View {
-    @StateObject var cameraManager = CameraManager()
+    @Environment(\.dismiss) private var dismiss
+
+    let onDone: () -> Void
+
+    @StateObject private var cameraManager = CameraManager()
     @State private var pinchStartZoom: CGFloat = 1.0
     @State private var isPinching = false
 
     var body: some View {
         ZStack {
-            CameraPreview(session: cameraManager.session) { devicePoint, _ in
-                cameraManager.focus(at: devicePoint)
-            }
-            .ignoresSafeArea()
+            Color.black
+                .ignoresSafeArea()
+
+            cameraContent
 
             VStack {
                 HStack {
@@ -102,7 +106,9 @@ struct CameraView: View {
                     }
 
                     HStack {
-                        Button {} label: {
+                        Button {
+                            dismiss()
+                        } label: {
                             Image(systemName: "xmark")
                                 .bold()
                                 .foregroundStyle(.white)
@@ -115,10 +121,18 @@ struct CameraView: View {
                         Button {
                             cameraManager.takePhoto()
                         } label: {
-                            Circle()
-                                .fill(.white)
-                                .frame(width: 64, height: 64)
+                            ZStack {
+                                Circle()
+                                    .fill(.white)
+                                    .frame(width: 64, height: 64)
+
+                                if cameraManager.isLoading {
+                                    ProgressView()
+                                        .tint(.black)
+                                }
+                            }
                         }
+                        .disabled(cameraManager.isLoading)
                         .padding(8)
                         .overlay {
                             Circle().stroke(.white, lineWidth: 4)
@@ -191,6 +205,40 @@ struct CameraView: View {
                     pinchStartZoom = cameraManager.zoomFactor
                 }
         )
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    @ViewBuilder
+    private var cameraContent: some View {
+        #if targetEnvironment(simulator)
+        cameraUnavailableView(
+            message: "Camera preview is unavailable in Simulator. Run the app on a real iPhone to use the camera."
+        )
+        #else
+        if let errorMessage = cameraManager.errorMessage {
+            cameraUnavailableView(message: errorMessage)
+        } else {
+            CameraPreview(session: cameraManager.session) { devicePoint, _ in
+                cameraManager.focus(at: devicePoint)
+            }
+            .ignoresSafeArea()
+        }
+        #endif
+    }
+
+    private func cameraUnavailableView(message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title)
+                .foregroundStyle(.yellow)
+
+            Text(message)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 32)
+        }
     }
 
     func zoomButton(zoomFactor: CGFloat, zoomMax: CGFloat, isLast: Bool) -> some View {
@@ -226,5 +274,5 @@ struct CameraView: View {
 }
 
 #Preview {
-    CameraView()
+    CameraView(onDone: {})
 }

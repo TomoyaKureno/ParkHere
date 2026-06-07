@@ -375,11 +375,12 @@ final class CameraManager: NSObject, ObservableObject {
     }
 
     func takePhoto() {
+        guard !isLoading else { return }
+
         let selectedFlashMode = flashMode.avFlashMode
 
-        DispatchQueue.main.async { [weak self] in
-            self?.isLoading = true
-        }
+        isLoading = true
+        errorMessage = nil
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
