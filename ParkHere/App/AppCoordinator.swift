@@ -8,6 +8,7 @@
 import Combine
 import SwiftUI
 
+@MainActor
 final class AppCoordinator: ObservableObject {
     @Published var path = NavigationPath()
 
@@ -17,7 +18,6 @@ final class AppCoordinator: ObservableObject {
 
     func pop() {
         guard path.count > 0 else { return }
-
         path.removeLast()
     }
 

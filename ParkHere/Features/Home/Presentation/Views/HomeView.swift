@@ -8,38 +8,42 @@
 import SwiftUI
 
 struct HomeView: View {
+    let onSaveParkingSpot: () -> Void
+    let onFindParkingSpot: () -> Void
+
     @State private var hasSavedLocation: Bool = false
-    
+
     var body: some View {
         ZStack {
             Color.surfacePrimaryBlack
                 .ignoresSafeArea()
-            
-            VStack (spacing: 38) {
+
+            VStack(spacing: 38) {
                 Spacer()
-                
-                VStack (spacing: 28) {
+
+                VStack(spacing: 28) {
                     HomeIconView()
-                    
+
                     HomeTItleView(
                         title: "Save Your Parking Spot",
                         description: "We'll capture your current location so you can easily navigate back to your parking."
                     )
-                    
+
                     HomeCardView(hasSavedLocation: $hasSavedLocation)
                 }
-                
-                VStack (spacing: 8) {
+
+                VStack(spacing: 8) {
                     Button {
                         hasSavedLocation = true
+                        onSaveParkingSpot()
                     } label: {
                         Text("Save Parking Spot")
                     }
                     .buttonStyle(.primaryStyle)
                     .disabled(hasSavedLocation)
-                    
+
                     Button {
-                        hasSavedLocation = false
+                        onFindParkingSpot()
                     } label: {
                         Text("Find Parking Spot")
                     }
@@ -47,7 +51,6 @@ struct HomeView: View {
                     .disabled(!hasSavedLocation)
                 }
 
-                
                 Spacer()
             }
         }
@@ -55,10 +58,16 @@ struct HomeView: View {
 }
 
 #Preview("Preview Light Mode") {
-    HomeView()
+    HomeView(
+        onSaveParkingSpot: {},
+        onFindParkingSpot: {}
+    )
 }
 
 #Preview("Preview Dark Mode") {
-    HomeView()
-        .preferredColorScheme(.dark)
+    HomeView(
+        onSaveParkingSpot: {},
+        onFindParkingSpot: {}
+    )
+    .preferredColorScheme(.dark)
 }
