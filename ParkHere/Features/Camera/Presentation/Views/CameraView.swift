@@ -10,6 +10,7 @@ import SwiftUI
 
 struct CameraView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var waypointStore: WaypointStore //nb: environment object is used when a view needs access to an object created somewhere above it
 
     let onDone: () -> Void
 
@@ -152,7 +153,9 @@ struct CameraView: View {
                     }
                     .padding(.horizontal, 24)
 
-                    Button {} label: {
+                    Button {
+                        onDone()
+                    } label: {
                         Text("Done")
                             .foregroundStyle(.white)
                             .font(.headline)
@@ -187,6 +190,12 @@ struct CameraView: View {
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
             guard !isPinching else { return }
             pinchStartZoom = newValue
+        }
+        .onChange(of: cameraManager.cameraState) { _, newValue in
+            if case .previewPhoto(let image) = newValue {
+                waypointStore.addWaypoint(image)
+                cameraManager.cameraState = .takePhoto
+            }
         }
         .onDisappear {
             cameraManager.stopSession()

@@ -10,9 +10,22 @@
 		6432F59A2FC5396000547C96 /* ParkHere.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParkHere.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E1357CDE2FD65FCE00F25939 /* Exceptions for "ParkHere" folder in "ParkHere" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6432F5992FC5396000547C96 /* ParkHere */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6432F59C2FC5396000547C96 /* ParkHere */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E1357CDE2FD65FCE00F25939 /* Exceptions for "ParkHere" folder in "ParkHere" target */,
+			);
 			path = ParkHere;
 			sourceTree = "<group>";
 		};
@@ -253,7 +266,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = U8V6C9PU58;
+				DEVELOPMENT_TEAM = 9742ZCZ36B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "ParkHere needs camera access to let you take waypoint photos that help guide you back to your parked vehicle.";
@@ -287,7 +300,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = U8V6C9PU58;
+				DEVELOPMENT_TEAM = 9742ZCZ36B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "ParkHere needs camera access to let you take waypoint photos that help guide you back to your parked vehicle.";
