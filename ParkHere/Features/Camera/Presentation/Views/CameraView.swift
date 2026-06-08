@@ -10,13 +10,15 @@ import SwiftUI
 
 struct CameraView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var waypointStore: WaypointStore //nb: environment object is used when a view needs access to an object created somewhere above it
+    @StateObject private var waypointStore = WaypointStore() //nb: environment object is used when a view needs access to an object created somewhere above it
 
     let onDone: () -> Void
 
     @StateObject private var cameraManager = CameraManager()
     @State private var pinchStartZoom: CGFloat = 1.0
     @State private var isPinching = false
+    @State private var isWaypointSheetPresented = false
+    @State private var showDoneAlert = false
 
     var body: some View {
         ZStack {
@@ -28,7 +30,7 @@ struct CameraView: View {
             VStack {
                 HStack {
                     HStack(spacing: 16) {
-                        Image(systemName: "mappin")
+                        Image(systemName: AppIcon.mapPin)
                             .font(.title2.bold())
                             .foregroundStyle(.blue)
                         VStack(alignment: .leading) {
@@ -44,7 +46,7 @@ struct CameraView: View {
                     Spacer(minLength: 32)
 
                     Button {} label: {
-                        Image(systemName: "questionmark")
+                        Image(systemName: AppIcon.questionMark)
                             .font(.subheadline.bold())
                             .padding(8)
                             .overlay(
@@ -108,14 +110,20 @@ struct CameraView: View {
 
                     HStack {
                         Button {
-                            dismiss()
+                            isWaypointSheetPresented = true
                         } label: {
-                            Image(systemName: "xmark")
-                                .bold()
-                                .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .glassEffect(.regular)
+                            if let lastImage = waypointStore.capturedImages.last {
+                                Image(uiImage: lastImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 56, height: 56)
+                                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                            } else {
+                                Color.clear
+                                    .frame(width: 56, height: 56)
+                            }
                         }
+                        .disabled(waypointStore.capturedImages.isEmpty)
 
                         Spacer()
 
@@ -140,30 +148,29 @@ struct CameraView: View {
                         }
 
                         Spacer()
-
-                        Button {
-                            cameraManager.switchCamera()
+                                                
+                        Button{
+                            showDoneAlert = true
                         } label: {
-                            Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+                            Image(systemName: AppIcon.checkmark)
                                 .bold()
                                 .foregroundStyle(.white)
                                 .frame(width: 56, height: 56)
                                 .glassEffect(.regular)
                         }
+                        .disabled(waypointStore.capturedImages.isEmpty)
+
+//                        Button {
+//                            cameraManager.switchCamera()
+//                        } label: {
+//                            Image(systemName: AppIcon.flip)
+//                                .bold()
+//                                .foregroundStyle(.white)
+//                                .frame(width: 56, height: 56)
+//                                .glassEffect(.regular)
+//                        }
                     }
                     .padding(.horizontal, 24)
-
-                    Button {
-                        onDone()
-                    } label: {
-                        Text("Done")
-                            .foregroundStyle(.white)
-                            .font(.headline)
-                            .padding(16)
-                            .frame(width: 272)
-                    }
-                    .background(.blue)
-                    .clipShape(Capsule())
                 }
                 .padding(.horizontal)
                 .padding(.top, 48)
@@ -216,6 +223,25 @@ struct CameraView: View {
         )
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .alert("Ready to save?", isPresented: $showDoneAlert) {
+            Button("Review Waypoints", role: .cancel) {
+            }
+            Button("Save & Finish", role: .none) {
+                onDone()
+            }
+        } message: {
+            Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your waypoints before saving.")
+        }
+        .sheet(isPresented: $isWaypointSheetPresented) {
+            WaypointSheet(
+                onSaveParkingSpot: {
+                    isWaypointSheetPresented = false
+                    onDone()
+                }
+            )
+            .environmentObject(waypointStore)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)        }
     }
 
     @ViewBuilder
@@ -238,7 +264,7 @@ struct CameraView: View {
 
     private func cameraUnavailableView(message: String) -> some View {
         VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: AppIcon.unavailable)
                 .font(.title)
                 .foregroundStyle(.yellow)
 
@@ -280,8 +306,4 @@ struct CameraView: View {
     private func roundedZoomFactor(_ factor: CGFloat) -> CGFloat {
         (factor * 10).rounded()/10
     }
-}
-
-#Preview {
-    CameraView(onDone: {})
 }
