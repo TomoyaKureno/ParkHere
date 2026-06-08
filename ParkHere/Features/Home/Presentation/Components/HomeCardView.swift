@@ -14,7 +14,7 @@ struct HomeCardView: View {
         VStack (spacing: 32) {
             HStack {
                 HStack (alignment: .center, spacing: 4) {
-                    Image(systemName: "mappin")
+                    Image(systemName: AppIcon.mapPin)
                         .foregroundStyle(hasSavedLocation ? Color.brandPrimaryBlue : Color.surfaceSecondaryWhite)
                     
                     if (hasSavedLocation) {
@@ -36,7 +36,7 @@ struct HomeCardView: View {
                         print("Pressed")
                     } label: {
                         HStack (alignment: .center, spacing: 4) {
-                            Image(systemName: "arrow.trianglehead.clockwise")
+                            Image(systemName: AppIcon.refresh)
                                 .foregroundStyle(Color.surfaceSecondaryWhite)
                             
                             Text("Refresh")

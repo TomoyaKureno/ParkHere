@@ -9,7 +9,6 @@ import SwiftUI
 
 struct RootView: View {
     @StateObject private var appCoordinator = AppCoordinator()
-    @StateObject private var waypointStore = WaypointStore() //nb: observable object, without this, swiftui needs to recreate object and saved images could disappear. 
 
     var body: some View {
         NavigationStack(path: $appCoordinator.path) {
@@ -25,23 +24,13 @@ struct RootView: View {
                 switch route {
                 case .camera:
                     CameraView(onDone: {
-                        appCoordinator.push(.waypoint)
+                        appCoordinator.pop()
                     })
-                case .waypoint:
-                    WaypointView(
-                        onAddAnotherWaypoint: {
-                            appCoordinator.pop()
-                        },
-                        onSaveParkingSpot: {
-                            
-                        }
-                    )
                 case .tracker:
                     TrackerView(onFoundIt: {})
                 }
             }
         }
-        .environmentObject(waypointStore) // Share photo list
         .environmentObject(appCoordinator) // Share navigation
     }
 }

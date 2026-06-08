@@ -9,6 +9,5 @@ import Foundation
 
 enum AppRoute: Hashable {
     case camera
-    case waypoint
     case tracker
 }
