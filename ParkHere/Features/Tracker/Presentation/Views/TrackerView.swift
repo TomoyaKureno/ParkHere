@@ -8,109 +8,36 @@
 import SwiftUI
 
 struct TrackerView: View {
+    @ObservedObject var viewModel: CameraViewModel
     let onFoundIt: () -> Void
+    @State var toDegree: CGFloat = 180.0
+    @State private var showAlert = false
+
     var body: some View {
         ZStack {
-            Color.black.opacity(0.8)
+            Color.surfacePrimaryBlack
                 .ignoresSafeArea()
-
-            GeometryReader { proxy in
-                let diameter = proxy.size.width * 3
-
-                VStack(spacing: 32) {
-                    Spacer()
-
-                    VStack(spacing: 16) {
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 24, height: 24)
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 160).bold())
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(spacing: 16) {
-                        HStack {
-                            Spacer()
-
-                            VStack {
-                                Text("est.")
-                                HStack(spacing: 8) {
-                                    Image(systemName: "figure.walk")
-                                    Text("65m")
-                                }
-                                .font(.largeTitle.bold())
-                            }.foregroundStyle(.white)
-
-                            Spacer()
-
-                            VStack {}
-                                .frame(width: 2)
-                                .frame(maxHeight: .infinity)
-                                .background(.gray)
-                                .clipShape(Capsule())
-
-                            Spacer()
-
-                            VStack {
-                                Text("est.")
-
-                                HStack(spacing: 8) {
-                                    Image(systemName: "arrow.up")
-                                    Text("2 Floor")
-                                }
-                                .font(.largeTitle.bold())
-                            }.foregroundStyle(.white)
-                            Spacer()
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 95)
-                        .background(.black.opacity(0.7))
-                        .clipShape(RoundedRectangle(cornerRadius: 50))
-
-                        Button {} label: {
-                            Text("Found it!")
-                                .foregroundStyle(.white)
-                                .font(.headline)
-                                .padding()
-                                .frame(width: 272)
-                        }
-                        .background(.blue)
-                        .clipShape(Capsule())
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
-                .frame(maxWidth: .infinity)
-                .background {
-                    Circle()
-                        .fill(.green)
-//                        .fill(Color(red: 190/255, green: 190/255, blue: 190/255))
-                        .frame(width: diameter, height: diameter)
-                        .position(
-                            x: proxy.size.width/2,
-                            y: proxy.size.height + diameter * 0.15
-                        )
-                }
-            }
-            .ignoresSafeArea(edges: .bottom)
 
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
                     Text("Find Your Car")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.surfaceSecondaryWhite)
                         .font(.title.bold())
 
                     Text("Follow your saved waypoint to get back to your parking spot")
-                        .foregroundStyle(Color(red: 235/255, green: 235/255, blue: 245/255))
+                        .foregroundStyle(Color.surfaceSecondaryWhite)
+                        .font(.subheadline)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                 }
                 .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
 
                 Image("imgWaypoint")
                     .resizable()
-                    .scaledToFit()
-                    .clipped()
+                    .scaledToFill()
+                    .frame(height: 264)
                     .frame(maxWidth: .infinity)
                     .clipShape(
                         RoundedRectangle(cornerRadius: 8)
@@ -121,57 +48,168 @@ struct TrackerView: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(.green)
+                            .background(Color.brandAccentGreen)
                             .clipShape(Capsule())
-                            .offset(x: 16, y: 13)
+                            .offset(x: 12, y: 12)
                     }
-                    .overlay(alignment: .topLeading) {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black.opacity(0.8), location: 0.0),
-                                .init(color: .black.opacity(0.4), location: 0.3),
-                                .init(color: .clear, location: 0.4)
-                            ],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-                        .clipShape(
-                            UnevenRoundedRectangle(cornerRadii: .init(bottomLeading: 14, bottomTrailing: 14))
-                        )
-                        .padding(.horizontal, 9)
-                        .padding(.bottom, 13)
-                    }
-                    .overlay(alignment: .bottom) {
-                        VStack(spacing: 8) {
-                            Text("Can't find this waypoint?")
-                                .font(.footnote)
-                                .foregroundStyle(.white)
 
-                            Button {} label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "car.fill")
-                                    Text("Show Parking Spot")
-                                }
-                                .font(.footnote)
-                                .foregroundStyle(.white)
-                                .padding(8)
-                                .background(.gray)
+                if !viewModel.capturedWaypoints.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("Can't find this waypoint?")
+                            .font(.footnote)
+                            .foregroundStyle(.white)
+
+                        Button {} label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: AppIcon.carFill)
+                                Text("Show Parking Spot")
                             }
-                            .clipShape(Capsule())
-                            .glassEffect(.regular)
+                            .font(.footnote)
+                            .foregroundStyle(.white)
+                            .padding(8)
+                            .background(.gray)
                         }
-                        .frame(maxWidth: .infinity)
-                        .offset(y: -24)
+                        .clipShape(Capsule())
+                        .glassEffect(.regular)
                     }
+                    .frame(maxWidth: .infinity)
+                }
 
-                Spacer()
+                VStack(spacing: 16) {
+                    Spacer(minLength: 0)
+
+                    ZStack(alignment: .top) {
+                        let arcInset: CGFloat = 16
+                        let isArcFlipped = toDegree > 180
+                        let arcDegree = isArcFlipped ? 360 - toDegree : toDegree
+                        let arcVisibleDegree = max(0, arcDegree - arcInset * 2)
+                        let arcStart = arcInset / 360
+                        let arcEnd = (arcInset + arcVisibleDegree) / 360
+                        let shouldHideArc = arcVisibleDegree <= 0
+                        let shouldHideRotatingDot = toDegree <= 0 || toDegree >= 360
+
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 16, height: 16)
+
+                        Circle()
+                            .trim(from: arcStart, to: arcEnd)
+                            .stroke(
+                                .white.opacity(0.8),
+                                style: StrokeStyle(
+                                    lineWidth: 16,
+                                    lineCap: .round
+                                )
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .scaleEffect(x: isArcFlipped ? -1 : 1)
+                            .opacity(shouldHideArc ? 0 : 1)
+                            .padding(10)
+                            .overlay {
+                                Image(systemName: AppIcon.arrowUp)
+                                    .font(.system(size: 116).bold())
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .overlay(alignment: .top) {
+                                        Circle()
+                                            .fill(.gray)
+                                            .frame(width: 16, height: 16)
+                                            .opacity(shouldHideRotatingDot ? 0 : 1)
+                                    }
+                                    .rotationEffect(.degrees(toDegree))
+                            }
+                    }
+                    .frame(width: 200, height: 200)
+                    .animation(
+                        .interpolatingSpring(
+                            stiffness: 120,
+                            damping: 12
+                        ),
+                        value: toDegree
+                    )
+
+                    Spacer(minLength: 0)
+
+                    HStack {
+                        Spacer()
+
+                        VStack {
+                            Text("est.")
+                            HStack(spacing: 8) {
+                                Image(systemName: AppIcon.figureWalk)
+                                Text("65m")
+                            }
+                            .font(.largeTitle.bold())
+                        }.foregroundStyle(.white)
+
+                        Spacer()
+
+                        VStack {}
+                            .frame(width: 2)
+                            .frame(maxHeight: .infinity)
+                            .background(.gray)
+                            .clipShape(Capsule())
+
+                        Spacer()
+
+                        VStack {
+                            Text("est.")
+
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.up")
+                                Text("2 Floor")
+                            }
+                            .font(.largeTitle.bold())
+                        }.foregroundStyle(.white)
+
+                        Spacer()
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 95)
+                    .background(.black.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 30))
+
+                    if viewModel.capturedWaypoints.isEmpty {
+                        Button("Found it!") {}
+                            .buttonStyle(.primaryStyle)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .background {
+                    GeometryReader { proxy in
+                        let width = proxy.size.width
+                        let diameter = width * 3
+
+                        Circle()
+                            .fill(toDegree == 344 || toDegree == 16 ? Color.brandAccentGreen : Color.surfaceGray)
+                            .frame(width: diameter, height: diameter)
+                            .position(
+                                x: width / 2,
+                                y: diameter / 2
+                            )
+                    }
+                    .allowsHitTesting(false)
+                }
             }
             .padding(.horizontal, 24)
         }
         .navigationBarBackButtonHidden()
+        .alert("Found your car ?", isPresented: $showAlert) {
+            Button("Not Yet", role: .cancel) {}
+
+            Button("Done") {
+                onFoundIt()
+            }
+        } message: {
+            Text("This will clear your saved parking spot and waypoint photos")
+        }
     }
 }
 
 #Preview {
-    TrackerView(onFoundIt: {})
+    @Previewable @StateObject var viewModel = CameraViewModel()
+
+    TrackerView(viewModel: viewModel) {}
+        .preferredColorScheme(.dark)
 }
