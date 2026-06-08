@@ -8,27 +8,34 @@
 import SwiftUI
 
 struct WaypointView: View {
+    @EnvironmentObject private var waypointStore: WaypointStore
+    
+    let onAddAnotherWaypoint: () -> Void
+    let onSaveParkingSpot: () -> Void
+    
     var body: some View {
         VStack {
             Text("Your Waypoint Photos")
-                .font(.title2)
-                .bold()
-                .padding(5)
+                .font(.title3Bold)
+                .padding(7)
             Text(
-                "These photos will help guide you back to your car."
+                "The route that  will help guide you back to your car."
             )
-            .font(.subheadline)
+            .font(.footnote)
             .foregroundStyle(.secondary)
-            .padding(.bottom, 15)
+            .padding(.bottom, 30)
             HStack {
                 Text("Your Waypoints")
-                    .font(.headline)
+                    .font(.callout)
+                    .fontWeight(.semibold)
                 Spacer()
-                Text("4 Photos")
+                Text("\(waypointStore.capturedImages.count) Photos")
+                    .font(.subheadlineReg)
                     .foregroundStyle(.blue)
             }
             .padding(.horizontal)
             ScrollView {
+                
                 LazyVGrid(
                     columns: [
                         GridItem(.flexible()),
@@ -37,77 +44,73 @@ struct WaypointView: View {
                     alignment: .leading,
                     spacing: 10
                 ) {
-                    ForEach(0..<4, id: \.self) { column in
-
-                        if column == 0 {
-                            ZStack(alignment: .topLeading) {
-                                Image("valak")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(height: 120)
-                                    .clipped()
-                                    .clipShape(
-                                        RoundedRectangle(cornerRadius: 12)
-                                    )
+                    ForEach(Array(waypointStore.capturedImages.enumerated()), id:\.offset) {
+                        index, image in
+                            let isFirst = index == 0
+                            let isLast = index == waypointStore.capturedImages.count - 1
+                            
+                        ZStack(alignment:.topLeading) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height:120)
+                                .clipped()
+                                .clipShape(
+                                    RoundedRectangle(cornerRadius:12)
+                            )
+                            
+                            if isFirst {
                                 WaypointLabel(
                                     text: "Parking Spot",
                                     color: .blue
                                 )
-                                .padding(8)
-                            }
-                        } else if column == 3 {
-                            ZStack(alignment: .topLeading) {
-                                Image("valak")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(height: 120)
-                                    .clipped()
-                                    .clipShape(
-                                        RoundedRectangle(cornerRadius: 12)
-                                    )
+                            } else if isLast {
                                 WaypointLabel(
                                     text: "Final Spot",
-                                    color: .green
-                                )
-                                .padding(8)
+                                    color: .green)
                             }
-                        } else {
-                            Image("valak")
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 120)
-                                .clipped()
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            DiscardButton {
+                                withAnimation {
+                                    waypointStore.removeWaypoint(at: index)
+                                }
+                            }
+                            .padding(-8)
                         }
                     }
-                }.padding()
+                }
+                .padding()
             }
             Spacer()
             Button(action: {
-                print("Button Clicked")
+                onAddAnotherWaypoint()
             }) {
                 Text("Add Another Waypoint")
                     .frame(maxWidth: 250)
                     .font(.body)
                     .bold()
             }
-            .buttonStyle(BorderedButtonStyle())
-            .controlSize(.large)
+            .buttonStyle(.secondaryStyle)
             Button(action: {
-                print("Button Clicked")
+                onSaveParkingSpot()
             }) {
                 Text("Save Parking Spot")
                     .frame(maxWidth: 250)
                     .font(.body)
                     .bold()
             }
-            .controlSize(.large)
-            .buttonStyle(BorderedProminentButtonStyle())
+            .buttonStyle(.primaryStyle)
+            .disabled(waypointStore.capturedImages.isEmpty)
 
         }
     }
 }
 
 #Preview {
-    WaypointView()
+    WaypointView(
+        onAddAnotherWaypoint: {},
+        onSaveParkingSpot: {}
+    )
+    .environmentObject(WaypointStore())
 }

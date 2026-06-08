@@ -19,7 +19,7 @@ struct WaypointLabel: View {
             .foregroundColor(.white)
             .background(color)
             .clipShape(Capsule())
-        
+            .padding(8)
     }
 }
 
