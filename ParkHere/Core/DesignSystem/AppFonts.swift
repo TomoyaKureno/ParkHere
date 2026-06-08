@@ -9,6 +9,7 @@ import SwiftUI
 
 extension Font {
     static let titleBold = Font.system(size: 28, weight: .bold)
+    static let title3Bold = Font.system(size: 21, weight: .bold)
     static let bodyBold = Font.system(size: 17, weight: .bold)
     static let subheadlineReg = Font.system(size: 15, weight: .regular)
     static let footnoteBold = Font.system(size: 13, weight: .bold)
