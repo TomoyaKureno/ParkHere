@@ -1,5 +1,5 @@
 //
-//  WaypointView.swift
+//  WaypointSheet.swift
 //  ParkHere
 //
 //  Created by Kelly Angeline on 04/06/26.
@@ -7,10 +7,9 @@
 
 import SwiftUI
 
-struct WaypointView: View {
+struct WaypointSheet: View {
     @EnvironmentObject private var waypointStore: WaypointStore
     
-    let onAddAnotherWaypoint: () -> Void
     let onSaveParkingSpot: () -> Void
     
     var body: some View {
@@ -57,7 +56,7 @@ struct WaypointView: View {
                                 .clipped()
                                 .clipShape(
                                     RoundedRectangle(cornerRadius:12)
-                            )
+                                )
                             
                             if isFirst {
                                 WaypointLabel(
@@ -68,48 +67,24 @@ struct WaypointView: View {
                                 WaypointLabel(
                                     text: "Final Spot",
                                     color: .green)
+                            } else {
+                                WaypointLabel(
+                                    text: "Waypoint \(index)",
+                                    color: .gray)
                             }
-                        }
-                        .overlay(alignment: .topTrailing) {
-                            DiscardButton {
-                                withAnimation {
-                                    waypointStore.removeWaypoint(at: index)
-                                }
-                            }
-                            .padding(-8)
                         }
                     }
                 }
-                .padding()
             }
-            Spacer()
-            Button(action: {
-                onAddAnotherWaypoint()
-            }) {
-                Text("Add Another Waypoint")
-                    .frame(maxWidth: 250)
-                    .font(.body)
-                    .bold()
-            }
-            .buttonStyle(.secondaryStyle)
-            Button(action: {
-                onSaveParkingSpot()
-            }) {
-                Text("Save Parking Spot")
-                    .frame(maxWidth: 250)
-                    .font(.body)
-                    .bold()
-            }
-            .buttonStyle(.primaryStyle)
-            .disabled(waypointStore.capturedImages.isEmpty)
+            .padding(.horizontal)
 
         }
+        .padding(.top, 30)
     }
 }
 
 #Preview {
-    WaypointView(
-        onAddAnotherWaypoint: {},
+    WaypointSheet(
         onSaveParkingSpot: {}
     )
     .environmentObject(WaypointStore())

@@ -17,5 +17,8 @@ enum AppIcon {
     static let figureWalk = "figure.walk"
     static let arrowUp = "arrow.up"
     static let arrowDown = "arrow.down"
-    static let carFill = "car.fill"
+    static let carFill = "car.fill"    
+    static let unavailable = "exclamationmark.triangle.fill"
+    static let checkmark = "checkmark"
+
 }
