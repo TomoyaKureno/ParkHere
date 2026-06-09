@@ -9,16 +9,18 @@ import AVFoundation
 import SwiftUI
 
 struct CameraView: View {
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var waypointStore = WaypointStore() //nb: environment object is used when a view needs access to an object created somewhere above it
+    @ObservedObject var store: WaypointStore
+    @ObservedObject var locationManager: UserLocationManager
 
     let onDone: () -> Void
+    let onPop: () -> Void
 
     @StateObject private var cameraManager = CameraManager()
     @State private var pinchStartZoom: CGFloat = 1.0
     @State private var isPinching = false
     @State private var isWaypointSheetPresented = false
     @State private var showDoneAlert = false
+    @State private var didFinishCapture = false
 
     var body: some View {
         ZStack {
@@ -28,39 +30,37 @@ struct CameraView: View {
             cameraContent
 
             VStack {
-                HStack {
-                    HStack(spacing: 16) {
-                        Image(systemName: AppIcon.mapPin)
-                            .font(.title2.bold())
-                            .foregroundStyle(.blue)
-                        VStack(alignment: .leading) {
+                HStack(alignment: .top, spacing: 8) {
+                    HStack(alignment: .top, spacing: 16) {
+                        Button {
+                            cancelCapture()
+                        } label: {
+                            Image(systemName: AppIcon.chevronLeft)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 52, height: 52)
+                        }
+                        .glassEffect(.regular, in: Circle())
+
+                        VStack(alignment: .leading, spacing: 4) {
                             Text("Capture Waypoint")
-                                .font(.title2.bold())
+                                .font(.title3Bold)
 
                             Text("Capture multiple landmarks to help guide you back to your parking spot")
-                                .font(.subheadline)
+                                .font(.subheadlineReg)
                         }
                         .foregroundStyle(.white)
                     }
 
-                    Spacer(minLength: 32)
+                    Spacer(minLength: 0)
 
-                    Button {} label: {
-                        Image(systemName: AppIcon.questionMark)
-                            .font(.subheadline.bold())
-                            .padding(8)
-                            .overlay(
-                                Circle().stroke(.blue, lineWidth: 2)
-                            )
-                            .padding(8)
-                            .background(
-                                Color(red: 27/255, green: 31/255, blue: 38/255, opacity: 1.0)
-                            )
-                            .clipShape(Circle())
-                    }
+                    Image(systemName: AppIcon.mapPin)
+                        .font(.titleBold)
+                        .foregroundStyle(.blue)
                 }
-                .padding([.top, .horizontal])
+                .padding([.top, .horizontal], 16)
                 .padding(.bottom, 40)
+                .frame(maxWidth: .infinity)
                 .background(
                     LinearGradient(
                         gradient: Gradient(stops: [
@@ -103,7 +103,7 @@ struct CameraView: View {
                             .disabled(!cameraManager.isFlashAvailable)
                         }
 
-                        Text("Location data saves automatically")
+                        Text(locationManager.statusText)
                             .font(.footnote)
                             .foregroundStyle(.white)
                     }
@@ -112,7 +112,7 @@ struct CameraView: View {
                         Button {
                             isWaypointSheetPresented = true
                         } label: {
-                            if let lastImage = waypointStore.capturedImages.last {
+                            if let lastImage = store.capturedImages.last {
                                 Image(uiImage: lastImage)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
@@ -123,33 +123,37 @@ struct CameraView: View {
                                     .frame(width: 56, height: 56)
                             }
                         }
-                        .disabled(waypointStore.capturedImages.isEmpty)
+                        .disabled(store.capturedImages.isEmpty)
 
                         Spacer()
 
                         Button {
-                            cameraManager.takePhoto()
+                            locationManager.requestCurrentLocation { location in
+                                guard let location else { return }
+
+                                cameraManager.takePhoto(location: location)
+                            }
                         } label: {
                             ZStack {
                                 Circle()
                                     .fill(.white)
                                     .frame(width: 64, height: 64)
 
-                                if cameraManager.isLoading {
+                                if cameraManager.isLoading || locationManager.isRequestingLocation {
                                     ProgressView()
                                         .tint(.black)
                                 }
                             }
                         }
-                        .disabled(cameraManager.isLoading)
+                        .disabled(cameraManager.isLoading || locationManager.isRequestingLocation)
                         .padding(8)
                         .overlay {
                             Circle().stroke(.white, lineWidth: 4)
                         }
 
                         Spacer()
-                                                
-                        Button{
+
+                        Button {
                             showDoneAlert = true
                         } label: {
                             Image(systemName: AppIcon.checkmark)
@@ -158,7 +162,7 @@ struct CameraView: View {
                                 .frame(width: 56, height: 56)
                                 .glassEffect(.regular)
                         }
-                        .disabled(waypointStore.capturedImages.isEmpty)
+                        .disabled(store.capturedImages.isEmpty)
 
 //                        Button {
 //                            cameraManager.switchCamera()
@@ -193,19 +197,24 @@ struct CameraView: View {
         .onAppear {
             pinchStartZoom = cameraManager.zoomFactor
             cameraManager.startSession()
+            locationManager.requestAccessAndStartUpdating()
         }
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
             guard !isPinching else { return }
             pinchStartZoom = newValue
         }
         .onChange(of: cameraManager.cameraState) { _, newValue in
-            if case .previewPhoto(let image) = newValue {
-                waypointStore.addWaypoint(image)
+            if case .previewPhoto(_, let image, let location) = newValue {
+                store.addWaypoint(image, location: location)
                 cameraManager.cameraState = .takePhoto
             }
         }
         .onDisappear {
             cameraManager.stopSession()
+
+            if !didFinishCapture {
+                store.clearParkingSpot()
+            }
         }
         .gesture(
             MagnificationGesture()
@@ -225,9 +234,12 @@ struct CameraView: View {
         .toolbar(.hidden, for: .navigationBar)
         .alert("Ready to save?", isPresented: $showDoneAlert) {
             Button("Review Waypoints", role: .cancel) {
+                showDoneAlert = false
+                isWaypointSheetPresented = true
             }
+
             Button("Save & Finish", role: .none) {
-                onDone()
+                finishCapture()
             }
         } message: {
             Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your waypoints before saving.")
@@ -236,12 +248,13 @@ struct CameraView: View {
             WaypointSheet(
                 onSaveParkingSpot: {
                     isWaypointSheetPresented = false
-                    onDone()
+                    finishCapture()
                 }
             )
-            .environmentObject(waypointStore)
+            .environmentObject(store)
             .presentationDetents([.large])
-            .presentationDragIndicator(.visible)        }
+            .presentationDragIndicator(.visible)
+        }
     }
 
     @ViewBuilder
@@ -304,6 +317,16 @@ struct CameraView: View {
     }
 
     private func roundedZoomFactor(_ factor: CGFloat) -> CGFloat {
-        (factor * 10).rounded()/10
+        (factor * 10).rounded() / 10
+    }
+
+    private func cancelCapture() {
+        store.clearParkingSpot()
+        onPop()
+    }
+
+    private func finishCapture() {
+        didFinishCapture = true
+        onDone()
     }
 }

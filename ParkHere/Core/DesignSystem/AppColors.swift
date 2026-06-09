@@ -27,4 +27,6 @@ extension Color {
         ? UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
         : UIColor(red: 11/255, green: 11/255, blue: 11/255, alpha: 1)
     })
+    
+    static let surfaceGray = Color(red: 183/255, green: 183/255, blue: 183/255)
 }

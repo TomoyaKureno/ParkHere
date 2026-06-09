@@ -7,6 +7,7 @@
 
 import AVFoundation
 import Combine
+import CoreLocation
 import UIKit
 
 final class CameraManager: NSObject, ObservableObject {
@@ -374,7 +375,7 @@ final class CameraManager: NSObject, ObservableObject {
         }
     }
 
-    func takePhoto() {
+    func takePhoto(location: CLLocation? = nil) {
         guard !isLoading else { return }
 
         let selectedFlashMode = flashMode.avFlashMode
@@ -406,8 +407,11 @@ final class CameraManager: NSObject, ObservableObject {
                             return
                         }
 
-                        self.cameraState = .previewPhoto(image: image)
-
+                        self.cameraState = .previewPhoto(
+                            id: UUID(),
+                            image: image,
+                            location: location
+                        )
                     case .failure(let message):
                         self.errorMessage = message.localizedDescription
                     }
