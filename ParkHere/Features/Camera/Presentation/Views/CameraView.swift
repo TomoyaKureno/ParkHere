@@ -27,172 +27,196 @@ struct CameraView: View {
             Color.black
                 .ignoresSafeArea()
 
-            cameraContent
+            if case .takePhoto = cameraManager.cameraState {
+                cameraContent
 
-            VStack {
-                HStack(alignment: .top, spacing: 8) {
-                    HStack(alignment: .top, spacing: 16) {
-                        Button {
-                            cancelCapture()
-                        } label: {
-                            Image(systemName: AppIcon.chevronLeft)
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 52, height: 52)
-                        }
-                        .glassEffect(.regular, in: Circle())
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Capture Waypoint")
-                                .font(.title3Bold)
-
-                            Text("Capture multiple landmarks to help guide you back to your parking spot")
-                                .font(.subheadlineReg)
-                        }
-                        .foregroundStyle(.white)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: AppIcon.mapPin)
-                        .font(.titleBold)
-                        .foregroundStyle(.blue)
-                }
-                .padding([.top, .horizontal], 16)
-                .padding(.bottom, 40)
-                .frame(maxWidth: .infinity)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: Color.black.opacity(0.5), location: 0.0),
-                            .init(color: Color.black.opacity(0.45), location: 0.25),
-                            .init(color: Color.black.opacity(0.0), location: 1.0)
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-
-                Spacer()
-
-                VStack(spacing: 24) {
-                    VStack(spacing: 12) {
-                        HStack(spacing: 16) {
-                            if cameraManager.cameraPosition == .back {
-                                ForEach(Array(cameraManager.zoomFactors.enumerated()), id: \.offset) { index, zoomFactor in
-                                    zoomButton(
-                                        zoomFactor: zoomFactor,
-                                        zoomMax: index + 1 < cameraManager.zoomFactors.count ? cameraManager.zoomFactors[index + 1] : cameraManager.maxZoomFactor,
-                                        isLast: index == cameraManager.zoomFactors.count - 1
-                                    )
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .overlay(alignment: .topTrailing) {
+                VStack {
+                    HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: 16) {
                             Button {
-                                cameraManager.cycleFlashMode()
+                                cancelCapture()
                             } label: {
-                                Image(systemName: cameraManager.flashMode.iconName)
-                                    .font(.footnote)
-                                    .foregroundStyle(cameraManager.flashMode == .off ? .white : .yellow)
-                                    .padding(8)
-                                    .background(.black.opacity(0.25))
-                                    .clipShape(Circle())
+                                Image(systemName: AppIcon.chevronLeft)
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 52, height: 52)
                             }
-                            .disabled(!cameraManager.isFlashAvailable)
-                        }
+                            .glassEffect(.regular, in: Circle())
 
-                        Text(locationManager.statusText)
-                            .font(.footnote)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Capture Waypoint")
+                                    .font(.title3Bold)
+
+                                Text("Capture multiple landmarks to help guide you back to your parking spot")
+                                    .font(.subheadlineReg)
+                            }
                             .foregroundStyle(.white)
-                    }
-
-                    HStack {
-                        Button {
-                            isWaypointSheetPresented = true
-                        } label: {
-                            if let lastImage = store.capturedImages.last {
-                                Image(uiImage: lastImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 56, height: 56)
-                                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                            } else {
-                                Color.clear
-                                    .frame(width: 56, height: 56)
-                            }
                         }
-                        .disabled(store.capturedImages.isEmpty)
 
-                        Spacer()
+                        Spacer(minLength: 0)
 
-                        Button {
-                            locationManager.requestCurrentLocation { location in
-                                guard let location else { return }
+                        Image(systemName: AppIcon.mapPin)
+                            .font(.titleBold)
+                            .foregroundStyle(.blue)
+                    }
+                    .padding([.top, .horizontal], 16)
+                    .padding(.bottom, 40)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: Color.black.opacity(0.5), location: 0.0),
+                                .init(color: Color.black.opacity(0.45), location: 0.25),
+                                .init(color: Color.black.opacity(0.0), location: 1.0)
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
 
-                                cameraManager.takePhoto(location: location)
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(.white)
-                                    .frame(width: 64, height: 64)
+                    Spacer()
 
-                                if cameraManager.isLoading || locationManager.isRequestingLocation {
-                                    ProgressView()
-                                        .tint(.black)
+                    VStack(spacing: 24) {
+                        VStack(spacing: 12) {
+                            HStack(spacing: 16) {
+                                if cameraManager.cameraPosition == .back {
+                                    ForEach(Array(cameraManager.zoomFactors.enumerated()), id: \.offset) { index, zoomFactor in
+                                        zoomButton(
+                                            zoomFactor: zoomFactor,
+                                            zoomMax: index + 1 < cameraManager.zoomFactors.count ? cameraManager.zoomFactors[index + 1] : cameraManager.maxZoomFactor,
+                                            isLast: index == cameraManager.zoomFactors.count - 1
+                                        )
+                                    }
                                 }
                             }
-                        }
-                        .disabled(cameraManager.isLoading || locationManager.isRequestingLocation)
-                        .padding(8)
-                        .overlay {
-                            Circle().stroke(.white, lineWidth: 4)
-                        }
+                            .frame(maxWidth: .infinity)
+                            .overlay(alignment: .topTrailing) {
+                                Button {
+                                    cameraManager.cycleFlashMode()
+                                } label: {
+                                    Image(systemName: cameraManager.flashMode.iconName)
+                                        .font(.footnote)
+                                        .foregroundStyle(cameraManager.flashMode == .off ? .white : .yellow)
+                                        .padding(8)
+                                        .background(.black.opacity(0.25))
+                                        .clipShape(Circle())
+                                }
+                                .disabled(!cameraManager.isFlashAvailable)
+                            }
 
-                        Spacer()
-
-                        Button {
-                            showDoneAlert = true
-                        } label: {
-                            Image(systemName: AppIcon.checkmark)
-                                .bold()
+                            Text(locationManager.statusText)
+                                .font(.footnote)
                                 .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .glassEffect(.regular)
                         }
-                        .disabled(store.capturedImages.isEmpty)
 
-//                        Button {
-//                            cameraManager.switchCamera()
-//                        } label: {
-//                            Image(systemName: AppIcon.flip)
-//                                .bold()
-//                                .foregroundStyle(.white)
-//                                .frame(width: 56, height: 56)
-//                                .glassEffect(.regular)
-//                        }
+                        HStack {
+                            Button {
+                                isWaypointSheetPresented = true
+                            } label: {
+                                if let lastImage = store.capturedImages.last {
+                                    Image(uiImage: lastImage)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 56, height: 56)
+                                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                                } else {
+                                    Color.clear
+                                        .frame(width: 56, height: 56)
+                                }
+                            }
+                            .disabled(store.capturedImages.isEmpty)
+
+                            Spacer()
+
+                            Button {
+                                locationManager.requestCurrentLocation { location in
+                                    guard let location else { return }
+
+                                    cameraManager.takePhoto(location: location)
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(.white)
+                                        .frame(width: 64, height: 64)
+
+                                    if cameraManager.isLoading || locationManager.isRequestingLocation {
+                                        ProgressView()
+                                            .tint(.black)
+                                    }
+                                }
+                            }
+                            .disabled(cameraManager.isLoading || locationManager.isRequestingLocation)
+                            .padding(8)
+                            .overlay {
+                                Circle().stroke(.white, lineWidth: 4)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                showDoneAlert = true
+                            } label: {
+                                Image(systemName: AppIcon.checkmark)
+                                    .bold()
+                                    .foregroundStyle(.white)
+                                    .frame(width: 56, height: 56)
+                                    .glassEffect(.regular)
+                            }
+                            .disabled(store.capturedImages.isEmpty)
+                        }
+                        .padding(.horizontal, 24)
                     }
-                    .padding(.horizontal, 24)
-                }
-                .padding(.horizontal)
-                .padding(.top, 48)
-                .padding(.bottom, 40)
-                .frame(maxWidth: .infinity)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: Color.black.opacity(0.5), location: 0.0),
-                            .init(color: Color.black.opacity(0.45), location: 0.25),
-                            .init(color: Color.black.opacity(0.0), location: 1.0)
-                        ]),
-                        startPoint: .bottom,
-                        endPoint: .top
+                    .padding(.horizontal)
+                    .padding(.top, 48)
+                    .padding(.bottom, 40)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: Color.black.opacity(0.5), location: 0.0),
+                                .init(color: Color.black.opacity(0.45), location: 0.25),
+                                .init(color: Color.black.opacity(0.0), location: 1.0)
+                            ]),
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
                     )
-                )
+                }
+                .ignoresSafeArea(edges: .bottom)
+            } else if case .previewPhoto(_, let image, let location) = cameraManager.cameraState {
+                Image(uiImage: image)
+                    .resizable()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea()
+
+                HStack {
+                    Button {
+                        cameraManager.cameraState = .takePhoto
+                    } label: {
+                        Image(systemName: AppIcon.xMark)
+                            .bold()
+                            .foregroundStyle(.white)
+                            .frame(width: 56, height: 56)
+                            .glassEffect(.regular)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        store.addWaypoint(image, location: location)
+                        cameraManager.cameraState = .takePhoto
+                    } label: {
+                        Image(systemName: AppIcon.checkmark)
+                            .bold()
+                            .foregroundStyle(.white)
+                            .frame(width: 56, height: 56)
+                            .glassEffect(.regular)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .frame(maxHeight: .infinity, alignment: .bottom)
             }
-            .ignoresSafeArea(edges: .bottom)
         }
         .onAppear {
             pinchStartZoom = cameraManager.zoomFactor
@@ -202,12 +226,6 @@ struct CameraView: View {
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
             guard !isPinching else { return }
             pinchStartZoom = newValue
-        }
-        .onChange(of: cameraManager.cameraState) { _, newValue in
-            if case .previewPhoto(_, let image, let location) = newValue {
-                store.addWaypoint(image, location: location)
-                cameraManager.cameraState = .takePhoto
-            }
         }
         .onDisappear {
             cameraManager.stopSession()
