@@ -8,10 +8,13 @@
 import SwiftUI
 
 struct HomeView: View {
+    @ObservedObject var store: WaypointStore
+    @ObservedObject var locationManager: UserLocationManager
+
     let onSaveParkingSpot: () -> Void
     let onFindParkingSpot: () -> Void
 
-    @State private var hasSavedLocation: Bool = false
+    @State private var isSavingParkingSpot = false
 
     var body: some View {
         ZStack {
@@ -26,46 +29,76 @@ struct HomeView: View {
 
                     HomeTItleView(
                         title: "Save Your Parking Spot",
-                        description: "We'll capture your current location so you can easily navigate back to your parking."
+                        description: locationManager.statusText
                     )
 
-                    HomeCardView(hasSavedLocation: $hasSavedLocation)
+                    HomeCardView(hasSavedLocation: .constant(store.hasSavedParkingSpot))
                 }
 
                 VStack(spacing: 8) {
                     Button {
-                        hasSavedLocation = true
-                        onSaveParkingSpot()
+                        isSavingParkingSpot = true
+                        locationManager.requestCurrentLocation { location in
+                            guard let location else {
+                                isSavingParkingSpot = false
+
+                                return
+                            }
+
+                            store.saveParkingLocation(location)
+                            store.clearWaypoints()
+                            isSavingParkingSpot = false
+                            onSaveParkingSpot()
+                        }
                     } label: {
-                        Text("Save Parking Spot")
+                        if isSavingParkingSpot || locationManager.isRequestingLocation {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text("Save Parking Spot")
+                        }
                     }
                     .buttonStyle(.primaryStyle)
-                    .disabled(hasSavedLocation)
+                    .disabled(store.hasSavedParkingSpot || isSavingParkingSpot)
 
                     Button {
+                        store.prepareTracking()
                         onFindParkingSpot()
                     } label: {
                         Text("Find Parking Spot")
                     }
                     .buttonStyle(.primaryStyle)
-                    .disabled(!hasSavedLocation)
+                    .disabled(!store.hasSavedParkingSpot)
                 }
 
                 Spacer()
             }
         }
+        .onAppear {
+            locationManager.requestAccessAndStartUpdating()
+        }
     }
 }
 
 #Preview("Preview Light Mode") {
+    @Previewable @StateObject var store = WaypointStore()
+    @Previewable @StateObject var locationManager = UserLocationManager()
+
     HomeView(
+        store: store,
+        locationManager: locationManager,
         onSaveParkingSpot: {},
         onFindParkingSpot: {}
     )
 }
 
 #Preview("Preview Dark Mode") {
+    @Previewable @StateObject var store = WaypointStore()
+    @Previewable @StateObject var locationManager = UserLocationManager()
+
     HomeView(
+        store: store,
+        locationManager: locationManager,
         onSaveParkingSpot: {},
         onFindParkingSpot: {}
     )
