@@ -1,0 +1,7 @@
+.cursor/logs/
+__pycache__/
+*.py[cod]
+
+.cursor/
+.sdd/
+specs/
