@@ -20,5 +20,5 @@ enum AppIcon {
     static let carFill = "car.fill"    
     static let unavailable = "exclamationmark.triangle.fill"
     static let checkmark = "checkmark"
-
+    static let chevronLeft = "chevron.left"
 }

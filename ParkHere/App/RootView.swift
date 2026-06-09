@@ -9,26 +9,32 @@ import SwiftUI
 
 struct RootView: View {
     @StateObject private var appCoordinator = AppCoordinator()
+    @StateObject private var waypointStore = WaypointStore() // nb: environment object is used when a view needs access to an object created somewhere above it
+    @StateObject private var locationManager = UserLocationManager()
 
     var body: some View {
         NavigationStack(path: $appCoordinator.path) {
             HomeView(
+                store: waypointStore,
+                locationManager: locationManager,
                 onSaveParkingSpot: {
-                    cameraViewModel.reset()
                     appCoordinator.push(.camera)
                 },
                 onFindParkingSpot: {
+                    waypointStore.prepareTracking()
                     appCoordinator.push(.tracker)
                 }
             )
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
                 case .camera:
-                    CameraView(onDone: {
+                    CameraView(store: waypointStore, locationManager: locationManager) {
                         appCoordinator.pop()
-                    })
+                    } onPop: {
+                        appCoordinator.pop()
+                    }
                 case .tracker:
-                    TrackerView(viewModel: cameraViewModel) {
+                    TrackerView(store: waypointStore, locationManager: locationManager) {
                         appCoordinator.popToRoot()
                     }
                 }

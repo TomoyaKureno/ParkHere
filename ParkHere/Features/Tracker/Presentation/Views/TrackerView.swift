@@ -8,12 +8,30 @@
 import SwiftUI
 
 struct TrackerView: View {
-    @ObservedObject var viewModel: CameraViewModel
+    @ObservedObject var store: WaypointStore
+    @ObservedObject var locationManager: UserLocationManager
+
     let onFoundIt: () -> Void
-    @State var toDegree: CGFloat = 180.0
+
     @State private var showAlert = false
+    @State private var showSkipToParkingSpotAlert = false
+    @State private var displayedArrowDegree: CGFloat = 0
+    @State private var arrivalEnteredAt: Date?
+    @State private var isArrivalConfirmed = false
 
     var body: some View {
+        let directionDegree = locationManager.relativeBearing(to: store.currentTrackingCoordinate) ?? 0
+        let forwardInset: CGFloat = 20
+        let isInsideForwardInset = directionDegree <= forwardInset || directionDegree >= 360 - forwardInset
+        let targetArrowDegree = snappedForwardDegree(for: directionDegree, inset: forwardInset)
+        let normalizedArrowDegree = normalizedDegree(displayedArrowDegree)
+        let distanceText = locationManager.distanceText(to: store.currentTrackingCoordinate)
+        let isInsideArrivalRadius = locationManager.isInsideArrivalRadius(
+            targetCoordinate: store.currentTrackingCoordinate,
+            targetAccuracy: store.currentTrackingHorizontalAccuracy
+        )
+        let isTrackingParkingSpot = store.isTrackingParkingSpot
+
         ZStack {
             Color.surfacePrimaryBlack
                 .ignoresSafeArea()
@@ -21,20 +39,20 @@ struct TrackerView: View {
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
                     Text("Find Your Car")
-                        .foregroundStyle(Color.surfaceSecondaryWhite)
-                        .font(.title.bold())
+                        .font(.titleBold)
 
                     Text("Follow your saved waypoint to get back to your parking spot")
-                        .foregroundStyle(Color.surfaceSecondaryWhite)
-                        .font(.subheadline)
+                        .font(.subheadlineReg)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
+                        .opacity(0.5)
                 }
+                .foregroundStyle(Color.surfaceSecondaryWhite)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
 
-                Image("imgWaypoint")
+                waypointImage
                     .resizable()
                     .scaledToFill()
                     .frame(height: 264)
@@ -43,28 +61,25 @@ struct TrackerView: View {
                         RoundedRectangle(cornerRadius: 8)
                     )
                     .overlay(alignment: .topLeading) {
-                        Text("3 Waypoints to go")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.brandAccentGreen)
-                            .clipShape(Capsule())
-                            .offset(x: 12, y: 12)
+                        if isTrackingParkingSpot {
+                            WaypointLabel(text: "Parking Spot", color: .brandPrimaryBlue)
+                        } else {
+                            WaypointLabel(text: "\(store.remainingWaypointCount) waypoints to go", color: .brandAccentGreen)
+                        }
                     }
 
-                if !viewModel.capturedWaypoints.isEmpty {
+                if !isTrackingParkingSpot {
                     VStack(spacing: 8) {
                         Text("Can't find this waypoint?")
-                            .font(.footnote)
-                            .foregroundStyle(.white)
+                            .opacity(0.5)
 
-                        Button {} label: {
+                        Button {
+                            showSkipToParkingSpotAlert = true
+                        } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: AppIcon.carFill)
                                 Text("Show Parking Spot")
                             }
-                            .font(.footnote)
                             .foregroundStyle(.white)
                             .padding(8)
                             .background(.gray)
@@ -72,6 +87,8 @@ struct TrackerView: View {
                         .clipShape(Capsule())
                         .glassEffect(.regular)
                     }
+                    .font(.footnoteReg)
+                    .foregroundStyle(Color.surfaceSecondaryWhite)
                     .frame(maxWidth: .infinity)
                 }
 
@@ -79,45 +96,53 @@ struct TrackerView: View {
                     Spacer(minLength: 0)
 
                     ZStack(alignment: .top) {
-                        let arcInset: CGFloat = 16
-                        let isArcFlipped = toDegree > 180
-                        let arcDegree = isArcFlipped ? 360 - toDegree : toDegree
+                        let arcInset = forwardInset
+                        let isArcFlipped = normalizedArrowDegree > 180
+                        let arcDegree = isArcFlipped ? 360 - normalizedArrowDegree : normalizedArrowDegree
                         let arcVisibleDegree = max(0, arcDegree - arcInset * 2)
                         let arcStart = arcInset / 360
                         let arcEnd = (arcInset + arcVisibleDegree) / 360
                         let shouldHideArc = arcVisibleDegree <= 0
-                        let shouldHideRotatingDot = toDegree <= 0 || toDegree >= 360
+                        let shouldHideRotatingDot = isInsideForwardInset
 
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 16, height: 16)
+                        if isArrivalConfirmed {
+                            Image(systemName: AppIcon.checkmark)
+                                .font(.system(size: 116).bold())
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .transition(.scale.combined(with: .opacity))
+                        } else {
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 16, height: 16)
 
-                        Circle()
-                            .trim(from: arcStart, to: arcEnd)
-                            .stroke(
-                                .white.opacity(0.8),
-                                style: StrokeStyle(
-                                    lineWidth: 16,
-                                    lineCap: .round
+                            Circle()
+                                .trim(from: arcStart, to: arcEnd)
+                                .stroke(
+                                    .white.opacity(0.8),
+                                    style: StrokeStyle(
+                                        lineWidth: 16,
+                                        lineCap: .round
+                                    )
                                 )
-                            )
-                            .rotationEffect(.degrees(-90))
-                            .scaleEffect(x: isArcFlipped ? -1 : 1)
-                            .opacity(shouldHideArc ? 0 : 1)
-                            .padding(10)
-                            .overlay {
-                                Image(systemName: AppIcon.arrowUp)
-                                    .font(.system(size: 116).bold())
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .overlay(alignment: .top) {
-                                        Circle()
-                                            .fill(.gray)
-                                            .frame(width: 16, height: 16)
-                                            .opacity(shouldHideRotatingDot ? 0 : 1)
-                                    }
-                                    .rotationEffect(.degrees(toDegree))
-                            }
+                                .rotationEffect(.degrees(-90))
+                                .scaleEffect(x: isArcFlipped ? -1 : 1)
+                                .opacity(shouldHideArc ? 0 : 1)
+                                .padding(10)
+                                .overlay {
+                                    Image(systemName: AppIcon.arrowUp)
+                                        .font(.system(size: 116).bold())
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .overlay(alignment: .top) {
+                                            Circle()
+                                                .fill(.gray)
+                                                .frame(width: 16, height: 16)
+                                                .opacity(shouldHideRotatingDot ? 0 : 1)
+                                        }
+                                        .rotationEffect(.degrees(displayedArrowDegree))
+                                }
+                        }
                     }
                     .frame(width: 200, height: 200)
                     .animation(
@@ -125,7 +150,7 @@ struct TrackerView: View {
                             stiffness: 120,
                             damping: 12
                         ),
-                        value: toDegree
+                        value: isArrivalConfirmed
                     )
 
                     Spacer(minLength: 0)
@@ -137,7 +162,7 @@ struct TrackerView: View {
                             Text("est.")
                             HStack(spacing: 8) {
                                 Image(systemName: AppIcon.figureWalk)
-                                Text("65m")
+                                Text(distanceText)
                             }
                             .font(.largeTitle.bold())
                         }.foregroundStyle(.white)
@@ -170,9 +195,14 @@ struct TrackerView: View {
                     .background(.black.opacity(0.7))
                     .clipShape(RoundedRectangle(cornerRadius: 30))
 
-                    if viewModel.capturedWaypoints.isEmpty {
-                        Button("Found it!") {}
-                            .buttonStyle(.primaryStyle)
+                    if isTrackingParkingSpot, store.currentTrackingCoordinate != nil {
+                        Button("Found it!") {
+                            guard isArrivalConfirmed else { return }
+
+                            showAlert = true
+                        }
+                        .buttonStyle(.primaryStyle)
+                        .disabled(!isArrivalConfirmed)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -182,7 +212,7 @@ struct TrackerView: View {
                         let diameter = width * 3
 
                         Circle()
-                            .fill(toDegree == 344 || toDegree == 16 ? Color.brandAccentGreen : Color.surfaceGray)
+                            .fill(isArrivalConfirmed || isInsideArrivalRadius || isInsideForwardInset ? Color.brandAccentGreen : Color.surfaceGray)
                             .frame(width: diameter, height: diameter)
                             .position(
                                 x: width / 2,
@@ -194,22 +224,177 @@ struct TrackerView: View {
             }
             .padding(.horizontal, 24)
         }
+        .onAppear {
+            locationManager.requestAccessAndStartUpdating()
+            updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
+            updateArrivalState(isInsideArrivalRadius: isInsideArrivalRadius)
+        }
+        .onChange(of: isInsideArrivalRadius) { _, newValue in
+            updateArrivalState(isInsideArrivalRadius: newValue)
+
+            if !newValue {
+                updateDisplayedArrowDegree(to: targetArrowDegree)
+            }
+        }
+        .onChange(of: isArrivalConfirmed) { _, newValue in
+            advanceWaypointIfNeeded(isArrivalConfirmed: newValue)
+        }
+        .onChange(of: directionDegree) { _, _ in
+            guard !isInsideArrivalRadius else { return }
+
+            updateDisplayedArrowDegree(to: targetArrowDegree)
+        }
         .navigationBarBackButtonHidden()
         .alert("Found your car ?", isPresented: $showAlert) {
             Button("Not Yet", role: .cancel) {}
 
             Button("Done") {
+                store.clearParkingSpot()
+                resetArrivalState()
                 onFoundIt()
             }
         } message: {
             Text("This will clear your saved parking spot and waypoint photos")
         }
+        .alert("Skip to parking spot?", isPresented: $showSkipToParkingSpotAlert) {
+            Button("Cancel", role: .cancel) {}
+
+            Button("Show Parking Spot") {
+                skipToParkingSpot()
+            }
+        } message: {
+            Text("This will skip the remaining waypoints and guide you directly to your saved parking spot.")
+        }
+    }
+
+    private var waypointImage: Image {
+        if let currentTrackingImage = store.currentTrackingImage {
+            return Image(uiImage: currentTrackingImage)
+        }
+
+        return Image("imgWaypoint")
+    }
+
+    private func snappedForwardDegree(for degree: CGFloat, inset: CGFloat) -> CGFloat {
+        if degree >= 360 - inset {
+            return 360
+        }
+
+        if degree <= inset {
+            return 0
+        }
+
+        return degree
+    }
+
+    private func updateDisplayedArrowDegree(to targetDegree: CGFloat, animated: Bool = true) {
+        let continuousTarget = closestContinuousDegree(
+            from: displayedArrowDegree,
+            to: targetDegree
+        )
+        let update = {
+            displayedArrowDegree = continuousTarget
+        }
+
+        if animated {
+            withAnimation(
+                .interpolatingSpring(
+                    stiffness: 120,
+                    damping: 12
+                )
+            ) {
+                update()
+            }
+        } else {
+            update()
+        }
+    }
+
+    private func closestContinuousDegree(from currentDegree: CGFloat, to targetDegree: CGFloat) -> CGFloat {
+        var adjustedDegree = targetDegree
+
+        while adjustedDegree - currentDegree > 180 {
+            adjustedDegree -= 360
+        }
+
+        while currentDegree - adjustedDegree > 180 {
+            adjustedDegree += 360
+        }
+
+        return adjustedDegree
+    }
+
+    private func normalizedDegree(_ degree: CGFloat) -> CGFloat {
+        let normalized = degree.truncatingRemainder(dividingBy: 360)
+
+        return normalized >= 0 ? normalized : normalized + 360
+    }
+
+    private func updateArrivalState(isInsideArrivalRadius: Bool) {
+        guard isInsideArrivalRadius else {
+            resetArrivalState()
+
+            return
+        }
+
+        guard arrivalEnteredAt == nil else { return }
+
+        let enteredAt = Date()
+        arrivalEnteredAt = enteredAt
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            guard arrivalEnteredAt == enteredAt else { return }
+
+            isArrivalConfirmed = true
+        }
+    }
+
+    private func resetArrivalState() {
+        arrivalEnteredAt = nil
+        isArrivalConfirmed = false
+    }
+
+    private func skipToParkingSpot() {
+        store.skipToParkingSpot()
+        resetArrivalState()
+        updateArrivalState(
+            isInsideArrivalRadius: locationManager.isInsideArrivalRadius(
+                targetCoordinate: store.currentTrackingCoordinate,
+                targetAccuracy: store.currentTrackingHorizontalAccuracy
+            )
+        )
+    }
+
+    private func advanceWaypointIfNeeded(isArrivalConfirmed: Bool) {
+        guard
+            isArrivalConfirmed,
+            !store.isTrackingParkingSpot,
+            let targetIndex = store.trackingTargetIndex
+        else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            guard
+                self.isArrivalConfirmed,
+                self.store.trackingTargetIndex == targetIndex,
+                !self.store.isTrackingParkingSpot
+            else { return }
+
+            _ = self.store.advanceToNextTrackingTarget()
+            self.resetArrivalState()
+            self.updateArrivalState(
+                isInsideArrivalRadius: self.locationManager.isInsideArrivalRadius(
+                    targetCoordinate: self.store.currentTrackingCoordinate,
+                    targetAccuracy: self.store.currentTrackingHorizontalAccuracy
+                )
+            )
+        }
     }
 }
 
 #Preview {
-    @Previewable @StateObject var viewModel = CameraViewModel()
+    @Previewable @StateObject var store = WaypointStore()
+    @Previewable @StateObject var locationManager = UserLocationManager()
 
-    TrackerView(viewModel: viewModel) {}
+    TrackerView(store: store, locationManager: locationManager) {}
         .preferredColorScheme(.dark)
 }
