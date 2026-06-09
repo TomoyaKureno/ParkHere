@@ -23,14 +23,15 @@ struct RootView: View {
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
                 case .camera:
-                    CameraView(onDone: {})
-                case .waypoint:
-                    WaypointView()
+                    CameraView(onDone: {
+                        appCoordinator.pop()
+                    })
                 case .tracker:
                     TrackerView(onFoundIt: {})
                 }
             }
         }
+        .environmentObject(appCoordinator) // Share navigation
     }
 }
 

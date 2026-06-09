@@ -10,9 +10,22 @@
 		6432F59A2FC5396000547C96 /* ParkHere.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParkHere.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E1357CDE2FD65FCE00F25939 /* Exceptions for "ParkHere" folder in "ParkHere" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6432F5992FC5396000547C96 /* ParkHere */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6432F59C2FC5396000547C96 /* ParkHere */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E1357CDE2FD65FCE00F25939 /* Exceptions for "ParkHere" folder in "ParkHere" target */,
+			);
 			path = ParkHere;
 			sourceTree = "<group>";
 		};
@@ -253,9 +266,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZKGPCA8MGG;
+				DEVELOPMENT_TEAM = 9742ZCZ36B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ParkHere/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "ParkHere needs camera access so you can take photos of parking locations and save them for reference";
 				INFOPLIST_KEY_NSMotionUsageDescription = "ParkHere needs Motion access to use your iPhone Altimeter so we can determined your parking spot elevation.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -287,9 +301,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZKGPCA8MGG;
+				DEVELOPMENT_TEAM = 9742ZCZ36B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ParkHere/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "ParkHere needs camera access so you can take photos of parking locations and save them for reference";
 				INFOPLIST_KEY_NSMotionUsageDescription = "ParkHere needs Motion access to use your iPhone Altimeter so we can determined your parking spot elevation.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
