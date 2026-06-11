@@ -15,7 +15,7 @@ struct PrimaryButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(isEnabled ? Color.white : Color.surfaceSecondaryWhite)
             .bold()
-            .frame(width: 272, height: 50)
+            .frame(width: 332, height: 50)
             .background(isEnabled ? Color.brandPrimaryBlue : Color.surfaceSecondaryWhite)
             .clipShape(.capsule)
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
@@ -32,7 +32,7 @@ struct SecondaryButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(Color.brandPrimaryBlue)
             .bold()
-            .frame(width: 272, height: 50)
+            .frame(width: 332, height: 50)
             .background(Color.gray.opacity(0.24))
             .clipShape(.capsule)
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)

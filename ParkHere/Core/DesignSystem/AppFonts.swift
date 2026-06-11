@@ -12,6 +12,8 @@ extension Font {
     static let title3Bold = Font.system(size: 21, weight: .bold)
     static let bodyBold = Font.system(size: 17, weight: .bold)
     static let subheadlineReg = Font.system(size: 15, weight: .regular)
+    static let subheadlineBold = Font.system(size: 15, weight: .bold)
     static let footnoteBold = Font.system(size: 13, weight: .bold)
+    static let footnoteSemiBold = Font.system(size: 13, weight: .semibold)
     static let footnoteReg = Font.system(size: 13, weight: .regular)
 }
