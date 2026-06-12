@@ -22,10 +22,22 @@ extension Color {
         : UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
     })
     
+    static let surfacePrimaryBlackTransparent = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 11/255, green: 11/255, blue: 11/255, alpha: 0)
+        : UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 0)
+    })
+    
     static let surfaceSecondaryWhite = Color(UIColor { trait in
         trait.userInterfaceStyle == .dark
         ? UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
         : UIColor(red: 11/255, green: 11/255, blue: 11/255, alpha: 1)
+    })
+    
+    static let surfaceSecondaryBlackSmoke = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 26/255, green: 26/255, blue: 26/255, alpha: 1)
+        : UIColor(red: 229/255, green: 229/255, blue: 229/255, alpha: 1)
     })
     
     static let surfaceGray = Color(red: 183/255, green: 183/255, blue: 183/255)
