@@ -1,14 +1,15 @@
 //
-//  LocationDeniedView.swift
+//  UnavailableView.swift
 //  ParkHere
 //
-//  Created by Marzandi Zahran Affandi Leta on 11/06/26.
+//  Created by Marzandi Zahran Affandi Leta on 12/06/26.
 //
 
 import SwiftUI
 
-struct LocationDeniedView: View {
+struct UnavailableView: View {
     var body: some View {
+        Spacer()
         VStack(alignment: .center, spacing: 24) {
             ZStack(alignment: .center) {
                 Circle()
@@ -34,15 +35,26 @@ struct LocationDeniedView: View {
             }
         }
         .frame(width: 323)
+        
+        Spacer()
+        
+        Button {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        } label: {
+            Text("Open Settings")
+                .foregroundStyle(Color.surfaceSecondaryWhite)
+        }
+        .buttonStyle(.primaryStyle)
     }
 }
 
 #Preview("Preview Dark Mode") {
-    LocationDeniedView()
+    UnavailableView()
         .preferredColorScheme(.dark)
 }
 
 #Preview("Preview Light Mode") {
-    LocationDeniedView()
+    UnavailableView()
 }
-

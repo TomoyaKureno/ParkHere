@@ -10,7 +10,6 @@ import SwiftUI
 struct HomeEmptyStateView: View {
     var body: some View {
         VStack(alignment: .leading) {
-            
             VStack(alignment: .center, spacing: 24) {
                 ZStack(alignment: .center) {
                     Circle()

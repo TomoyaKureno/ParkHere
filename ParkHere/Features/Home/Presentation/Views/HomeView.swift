@@ -25,43 +25,16 @@ struct HomeView: View {
             
             VStack {
                 if (locationManager.authorizationStatus == .denied) {
-                    Spacer ()
-                    
-                    LocationDeniedView()
+                    UnavailableView()
                 } else {
                     if (store.hasSavedParkingSpot) {
                         VStack {
                             HomeHasParkingSpotView()
                         }
                         
-                    } else {
-                        HStack {
-                            HomeCurrentLocationView()
-                            Spacer()
-                        }
-                        
                         Spacer()
                         
-                        HomeEmptyStateView()
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(spacing: 12) {
-                    if (locationManager.authorizationStatus == .denied) {
-                        Button {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(url)
-                            }
-                        } label: {
-                            Text("Open Settings")
-                                .foregroundStyle(Color.surfaceSecondaryWhite)
-                        }
-                        .buttonStyle(.primaryStyle)
-
-                    } else {
-                        if (store.hasSavedParkingSpot) {
+                        VStack(spacing: 12) {
                             Button {
                                 store.prepareTracking()
                                 onFindParkingSpot()
@@ -76,8 +49,21 @@ struct HomeView: View {
                                 Text("Capture Parking Spot")
                             }
                             .buttonStyle(.secondaryStyle)
-                            
-                        } else {
+                        }
+                        
+                    } else {
+                        HStack {
+                            HomeCurrentLocationView()
+                            Spacer()
+                        }
+                        
+                        Spacer()
+                        
+                        HomeEmptyStateView()
+                        
+                        Spacer()
+                        
+                        VStack(spacing: 12) {
                             Button {
                                 saveParkingSpot()
                             } label: {
