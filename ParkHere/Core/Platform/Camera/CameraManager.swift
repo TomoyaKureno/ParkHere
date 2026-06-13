@@ -23,7 +23,7 @@ final class CameraManager: NSObject, ObservableObject {
     @Published var capturedImages: [UIImage] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-
+    @Published private(set) var cameraAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
     @Published var cameraPosition: AVCaptureDevice.Position = .back
     @Published var zoomFactor: CGFloat = 1.0
     @Published var minZoomFactor: CGFloat = 1.0
@@ -44,24 +44,41 @@ final class CameraManager: NSObject, ObservableObject {
         checkPermissionAndSetup()
     }
 
+    var shouldShowSettingsButton: Bool {
+        cameraAuthorizationStatus == .denied || cameraAuthorizationStatus == .restricted
+    }
+
     private func checkPermissionAndSetup() {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        let authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        cameraAuthorizationStatus = authorizationStatus
+        
+        switch authorizationStatus {
         case .authorized:
-            configureSessionAsync(position: .back)
+            errorMessage = nil
+
+            if !sessionIsConfigured {
+                configureSessionAsync(position: .back)
+            }
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 guard granted else {
                     DispatchQueue.main.async {
-                        self?.errorMessage = "Camera access is denied."
+                        self?.cameraAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+                        self?.errorMessage = "Camera access is off. Enable it in Settings to capture waypoint photos."
                     }
 
                     return
                 }
 
+                DispatchQueue.main.async {
+                    self?.cameraAuthorizationStatus = .authorized
+                    self?.errorMessage = nil
+                }
+
                 self?.configureSessionAsync(position: .back)
             }
         case .denied, .restricted:
-            errorMessage = "Camera permission denied or restricted."
+            errorMessage = "Camera access is off. Enable it in Settings to capture waypoint photos."
         @unknown default:
             errorMessage = "Unknown camera permission status."
         }
@@ -157,6 +174,8 @@ final class CameraManager: NSObject, ObservableObject {
 
         DispatchQueue.main.async { [weak self] in
             self?.cameraPosition = position
+            self?.cameraAuthorizationStatus = .authorized
+            self?.errorMessage = nil
             self?.zoomFactor = self?.cameraZoomFactor(fromDeviceZoom: clampedDefaultDeviceZoom, displayMultiplier: displayMultiplier) ?? defaultCameraZoom
             self?.minZoomFactor = self?.cameraZoomFactor(fromDeviceZoom: device.minAvailableVideoZoomFactor, displayMultiplier: displayMultiplier) ?? defaultCameraZoom
             self?.maxZoomFactor = self?.cameraZoomFactor(fromDeviceZoom: maxZoom, displayMultiplier: displayMultiplier) ?? maxZoom
@@ -225,12 +244,18 @@ final class CameraManager: NSObject, ObservableObject {
     }
 
     func startSession() {
+        checkPermissionAndSetup()
+
         sessionQueue.async { [weak self] in
             guard let self else { return }
 
             shouldRunSession = true
 
-            guard self.sessionIsConfigured, !self.session.isRunning else { return }
+            guard
+                AVCaptureDevice.authorizationStatus(for: .video) == .authorized,
+                self.sessionIsConfigured,
+                !self.session.isRunning
+            else { return }
 
             self.session.startRunning()
         }

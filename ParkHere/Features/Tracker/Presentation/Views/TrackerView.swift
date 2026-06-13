@@ -16,21 +16,33 @@ struct TrackerView: View {
     @State private var showAlert = false
     @State private var showSkipToParkingSpotAlert = false
     @State private var displayedArrowDegree: CGFloat = 0
-    @State private var arrivalEnteredAt: Date?
+    @State private var isForwardLocked = false
     @State private var isArrivalConfirmed = false
+
+    private let forwardEnterInset: CGFloat = 20
+    private let forwardExitInset: CGFloat = 30
 
     var body: some View {
         let directionDegree = locationManager.relativeBearing(to: store.currentTrackingCoordinate) ?? 0
-        let forwardInset: CGFloat = 20
-        let isInsideForwardInset = directionDegree <= forwardInset || directionDegree >= 360 - forwardInset
-        let targetArrowDegree = snappedForwardDegree(for: directionDegree, inset: forwardInset)
+        let isInsideForwardEnterInset = isInsideForwardRange(directionDegree, inset: forwardEnterInset)
+        let isInsideForwardExitInset = isInsideForwardRange(directionDegree, inset: forwardExitInset)
+        let shouldLockForward = isForwardLocked ? isInsideForwardExitInset : isInsideForwardEnterInset
         let normalizedArrowDegree = normalizedDegree(displayedArrowDegree)
         let distanceText = locationManager.distanceText(to: store.currentTrackingCoordinate)
         let isInsideArrivalRadius = locationManager.isInsideArrivalRadius(
             targetCoordinate: store.currentTrackingCoordinate,
             targetAccuracy: store.currentTrackingHorizontalAccuracy
         )
+        let isOutsideArrivalExitRadius = locationManager.isOutsideArrivalExitRadius(
+            targetCoordinate: store.currentTrackingCoordinate
+        )
         let isTrackingParkingSpot = store.isTrackingParkingSpot
+        let directionInstruction = locationManager.directionInstruction(
+            for: shouldLockForward ? 0 : normalizedArrowDegree,
+            isFound: isArrivalConfirmed,
+            isTrackingParkingSpot: isTrackingParkingSpot
+        )
+        let distanceUpdateKey = locationManager.distance(to: store.currentTrackingCoordinate) ?? .greatestFiniteMagnitude
 
         ZStack {
             Color.surfacePrimaryBlack
@@ -96,14 +108,13 @@ struct TrackerView: View {
                     Spacer(minLength: 0)
 
                     ZStack(alignment: .top) {
-                        let arcInset = forwardInset
+                        let arcInset = forwardEnterInset
                         let isArcFlipped = normalizedArrowDegree > 180
                         let arcDegree = isArcFlipped ? 360 - normalizedArrowDegree : normalizedArrowDegree
                         let arcVisibleDegree = max(0, arcDegree - arcInset * 2)
                         let arcStart = arcInset / 360
                         let arcEnd = (arcInset + arcVisibleDegree) / 360
                         let shouldHideArc = arcVisibleDegree <= 0
-                        let shouldHideRotatingDot = isInsideForwardInset
 
                         if isArrivalConfirmed {
                             Image(systemName: AppIcon.checkmark)
@@ -115,6 +126,7 @@ struct TrackerView: View {
                             Circle()
                                 .fill(.white)
                                 .frame(width: 16, height: 16)
+                                .opacity(shouldLockForward ? 0 : 1)
 
                             Circle()
                                 .trim(from: arcStart, to: arcEnd)
@@ -136,9 +148,8 @@ struct TrackerView: View {
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                                         .overlay(alignment: .top) {
                                             Circle()
-                                                .fill(.gray)
+                                                .fill(shouldLockForward ? .white : .gray)
                                                 .frame(width: 16, height: 16)
-                                                .opacity(shouldHideRotatingDot ? 0 : 1)
                                         }
                                         .rotationEffect(.degrees(displayedArrowDegree))
                                 }
@@ -152,6 +163,12 @@ struct TrackerView: View {
                         ),
                         value: isArrivalConfirmed
                     )
+
+                    Text(directionInstruction)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
 
                     Spacer(minLength: 0)
 
@@ -212,7 +229,7 @@ struct TrackerView: View {
                         let diameter = width * 3
 
                         Circle()
-                            .fill(isArrivalConfirmed || isInsideArrivalRadius || isInsideForwardInset ? Color.brandAccentGreen : Color.surfaceGray)
+                            .fill(isArrivalConfirmed || isInsideArrivalRadius || shouldLockForward ? Color.brandAccentGreen : Color.surfaceGray)
                             .frame(width: diameter, height: diameter)
                             .position(
                                 x: width / 2,
@@ -226,14 +243,20 @@ struct TrackerView: View {
         }
         .onAppear {
             locationManager.requestAccessAndStartUpdating()
-            updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
-            updateArrivalState(isInsideArrivalRadius: isInsideArrivalRadius)
+            updateForwardLockAndArrow(for: directionDegree, animated: false)
+            updateArrivalState(
+                isInsideArrivalRadius: isInsideArrivalRadius,
+                isOutsideArrivalExitRadius: isOutsideArrivalExitRadius
+            )
         }
-        .onChange(of: isInsideArrivalRadius) { _, newValue in
-            updateArrivalState(isInsideArrivalRadius: newValue)
+        .onChange(of: distanceUpdateKey) { _, _ in
+            updateArrivalState(
+                isInsideArrivalRadius: isInsideArrivalRadius,
+                isOutsideArrivalExitRadius: isOutsideArrivalExitRadius
+            )
 
-            if !newValue {
-                updateDisplayedArrowDegree(to: targetArrowDegree)
+            if !isArrivalConfirmed {
+                updateForwardLockAndArrow(for: directionDegree)
             }
         }
         .onChange(of: isArrivalConfirmed) { _, newValue in
@@ -242,7 +265,7 @@ struct TrackerView: View {
         .onChange(of: directionDegree) { _, _ in
             guard !isInsideArrivalRadius else { return }
 
-            updateDisplayedArrowDegree(to: targetArrowDegree)
+            updateForwardLockAndArrow(for: directionDegree)
         }
         .navigationBarBackButtonHidden()
         .alert("Found your car ?", isPresented: $showAlert) {
@@ -275,16 +298,20 @@ struct TrackerView: View {
         return Image("imgWaypoint")
     }
 
-    private func snappedForwardDegree(for degree: CGFloat, inset: CGFloat) -> CGFloat {
-        if degree >= 360 - inset {
-            return 360
-        }
+    private func isInsideForwardRange(_ degree: CGFloat, inset: CGFloat) -> Bool {
+        degree <= inset || degree >= 360 - inset
+    }
 
-        if degree <= inset {
-            return 0
-        }
+    private func updateForwardLockAndArrow(for degree: CGFloat, animated: Bool = true) {
+        let nextIsForwardLocked = isForwardLocked
+            ? isInsideForwardRange(degree, inset: forwardExitInset)
+            : isInsideForwardRange(degree, inset: forwardEnterInset)
 
-        return degree
+        isForwardLocked = nextIsForwardLocked
+        updateDisplayedArrowDegree(
+            to: degree,
+            animated: animated
+        )
     }
 
     private func updateDisplayedArrowDegree(to targetDegree: CGFloat, animated: Bool = true) {
@@ -330,27 +357,24 @@ struct TrackerView: View {
         return normalized >= 0 ? normalized : normalized + 360
     }
 
-    private func updateArrivalState(isInsideArrivalRadius: Bool) {
-        guard isInsideArrivalRadius else {
+    private func updateArrivalState(
+        isInsideArrivalRadius: Bool,
+        isOutsideArrivalExitRadius: Bool
+    ) {
+        if isArrivalConfirmed {
+            guard isOutsideArrivalExitRadius else { return }
+
             resetArrivalState()
 
             return
         }
 
-        guard arrivalEnteredAt == nil else { return }
+        guard isInsideArrivalRadius else { return }
 
-        let enteredAt = Date()
-        arrivalEnteredAt = enteredAt
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            guard arrivalEnteredAt == enteredAt else { return }
-
-            isArrivalConfirmed = true
-        }
+        isArrivalConfirmed = true
     }
 
     private func resetArrivalState() {
-        arrivalEnteredAt = nil
         isArrivalConfirmed = false
     }
 
@@ -361,6 +385,9 @@ struct TrackerView: View {
             isInsideArrivalRadius: locationManager.isInsideArrivalRadius(
                 targetCoordinate: store.currentTrackingCoordinate,
                 targetAccuracy: store.currentTrackingHorizontalAccuracy
+            ),
+            isOutsideArrivalExitRadius: locationManager.isOutsideArrivalExitRadius(
+                targetCoordinate: store.currentTrackingCoordinate
             )
         )
     }
@@ -372,7 +399,9 @@ struct TrackerView: View {
             let targetIndex = store.trackingTargetIndex
         else { return }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
+
             guard
                 self.isArrivalConfirmed,
                 self.store.trackingTargetIndex == targetIndex,
@@ -385,6 +414,9 @@ struct TrackerView: View {
                 isInsideArrivalRadius: self.locationManager.isInsideArrivalRadius(
                     targetCoordinate: self.store.currentTrackingCoordinate,
                     targetAccuracy: self.store.currentTrackingHorizontalAccuracy
+                ),
+                isOutsideArrivalExitRadius: self.locationManager.isOutsideArrivalExitRadius(
+                    targetCoordinate: self.store.currentTrackingCoordinate
                 )
             )
         }
