@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct HomeView: View {
     @ObservedObject var store: WaypointStore
@@ -15,81 +16,106 @@ struct HomeView: View {
     let onFindParkingSpot: () -> Void
 
     @State private var isSavingParkingSpot = false
+    @State private var showClearParkingSpotAlert = false
 
     var body: some View {
         ZStack {
             Color.surfacePrimaryBlack
                 .ignoresSafeArea()
-
-            VStack(spacing: 38) {
-                Spacer()
-
-                VStack(spacing: 28) {
-                    HomeIconView()
-
-                    HomeTItleView(
-                        title: "Save Your Parking Spot",
-                        description: locationManager.statusText
-                    )
-
-                    HomeCardView(hasSavedLocation: .constant(store.hasSavedParkingSpot))
-                }
-
-                VStack(spacing: 8) {
-                    Button {
-                        isSavingParkingSpot = true
-                        locationManager.requestCurrentLocation { location in
-                            guard let location else {
-                                isSavingParkingSpot = false
-
-                                return
+            
+            VStack {
+                if (locationManager.authorizationStatus == .denied) {
+                    UnavailableView()
+                } else {
+                    if (store.hasSavedParkingSpot) {
+                        VStack {
+                            HomeHasParkingSpotView()
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(spacing: 12) {
+                            Button {
+                                store.prepareTracking()
+                                onFindParkingSpot()
+                            } label: {
+                                Text("Navigate to Car")
                             }
-
-                            store.saveParkingLocation(location)
-                            store.clearWaypoints()
-                            isSavingParkingSpot = false
-                            onSaveParkingSpot()
+                            .buttonStyle(.primaryStyle)
+                            
+                            Button {
+                                showClearParkingSpotAlert = true
+                            } label: {
+                                Text("Capture Parking Spot")
+                            }
+                            .buttonStyle(.secondaryStyle)
                         }
-                    } label: {
-                        if isSavingParkingSpot || locationManager.isRequestingLocation {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Save Parking Spot")
+                        
+                    } else {
+                        HStack {
+                            HomeCurrentLocationView()
+                            Spacer()
+                        }
+                        
+                        Spacer()
+                        
+                        HomeEmptyStateView()
+                        
+                        Spacer()
+                        
+                        VStack(spacing: 12) {
+                            Button {
+                                saveParkingSpot()
+                            } label: {
+                                if isSavingParkingSpot || locationManager.isRequestingLocation {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Text("Capture Parking Spot")
+                                }
+                            }
+                            .buttonStyle(.primaryStyle)
+                            .disabled(store.hasSavedParkingSpot || isSavingParkingSpot)
                         }
                     }
-                    .buttonStyle(.primaryStyle)
-                    .disabled(store.hasSavedParkingSpot || isSavingParkingSpot)
-
-                    Button {
-                        store.prepareTracking()
-                        onFindParkingSpot()
-                    } label: {
-                        Text("Find Parking Spot")
-                    }
-                    .buttonStyle(.primaryStyle)
-                    .disabled(!store.hasSavedParkingSpot)
                 }
-
-                Spacer()
             }
+            .safeAreaPadding()
         }
         .onAppear {
             locationManager.requestAccessAndStartUpdating()
         }
+        .alert("Replace Saved Parking Spot?", isPresented: $showClearParkingSpotAlert) {
+            Button("Replace", role: .confirm) {
+                store.clearParkingSpot()
+                showClearParkingSpotAlert = false
+            }
+            .tint(Color.brandPrimaryBlue)
+            .keyboardShortcut(.defaultAction)
+            
+            Button("Cancel", role: .cancel) {
+            }
+        } message: {
+            Text("This will delete your current parking spot and all associated waypoint photos.")
+        }
     }
-}
+    
+    // MARK: - Private Function
+    private func saveParkingSpot() {
+        isSavingParkingSpot = true
+        locationManager.requestCurrentLocation { location in
+            guard let location else {
+                isSavingParkingSpot = false
 
-#Preview("Preview Light Mode") {
-    @Previewable @StateObject var store = WaypointStore()
-    @Previewable @StateObject var locationManager = UserLocationManager()
+                return
+            }
 
-    HomeView(
-        store: store,
-        locationManager: locationManager,
-        onSaveParkingSpot: {},
-        onFindParkingSpot: {}
-    )
+            store.saveParkingLocation(location)
+            store.clearWaypoints()
+            isSavingParkingSpot = false
+            onSaveParkingSpot()
+        }
+    }
 }
 
 #Preview("Preview Dark Mode") {
@@ -103,4 +129,16 @@ struct HomeView: View {
         onFindParkingSpot: {}
     )
     .preferredColorScheme(.dark)
+}
+
+#Preview("Preview Light Mode") {
+    @Previewable @StateObject var store = WaypointStore()
+    @Previewable @StateObject var locationManager = UserLocationManager()
+
+    HomeView(
+        store: store,
+        locationManager: locationManager,
+        onSaveParkingSpot: {},
+        onFindParkingSpot: {}
+    )
 }
