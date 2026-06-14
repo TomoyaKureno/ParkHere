@@ -126,6 +126,14 @@ final class UserLocationManager: NSObject, ObservableObject {
 
         return distance <= arrivalRadius(targetAccuracy: targetAccuracy)
     }
+    
+    func setBackgroundUpdates(_ enabled: Bool) {
+        guard authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse else {
+            return
+        }
+        locationManager.allowsBackgroundLocationUpdates = enabled
+        locationManager.pausesLocationUpdatesAutomatically = !enabled
+    }
 
     private func setPendingLocationRequest(_ completion: @escaping (CLLocation?) -> Void) {
         pendingLocationTimeout?.cancel()

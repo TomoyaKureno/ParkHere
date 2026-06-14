@@ -41,6 +41,9 @@ final class WaypointStore: ObservableObject {
     @Published private(set) var parkingLongitude: Double?
     @Published private(set) var parkingHorizontalAccuracy: Double?
     @Published private(set) var trackingTargetIndex: Int?
+    @Published private(set) var parkingAltitudeAnchor: AltitudeSample?
+    
+    private var repository: ParkingRepository?
 
     var capturedImages: [UIImage] {
         capturedWaypoints.map(\.image)
@@ -99,11 +102,38 @@ final class WaypointStore: ObservableObject {
 
         return trackingTargetIndex == 0
     }
+    
+    func attach(repository: ParkingRepository) {
+        self.repository = repository
+    }
+    
+    func restoreFromPresistence() {
+        guard let record = repository?.loadActive() else { return }
+        parkingLatitude = record.latitude
+        parkingLongitude = record.longitude
+        parkingHorizontalAccuracy = record.horizontalAccuracy
+        
+        if record.absoluteAltitude != nil || record.pressureKPa != nil {
+            parkingAltitudeAnchor = AltitudeSample(
+                absoluteAltitude: record.absoluteAltitude,
+                pressureKPa: record.pressureKPa,
+                relativeAltitude: record.relativeAltitude,
+                capturedAt: record.createdAt
+            )
+        }
+    }
 
-    func saveParkingLocation(_ location: CLLocation?) {
+    func saveParkingLocation(_ location: CLLocation?, altitude: AltitudeSample? = nil) {
         parkingLatitude = location?.coordinate.latitude
         parkingLongitude = location?.coordinate.longitude
         parkingHorizontalAccuracy = location?.horizontalAccuracy
+        parkingAltitudeAnchor = altitude
+        
+        repository?.save(
+            coordinate: location?.coordinate,
+            horizontalAccuracy: location?.horizontalAccuracy,
+            altitude: altitude
+        )
     }
 
     func addWaypoint(_ image: UIImage, location: CLLocation?) {
@@ -149,6 +179,8 @@ final class WaypointStore: ObservableObject {
         parkingLatitude = nil
         parkingLongitude = nil
         parkingHorizontalAccuracy = nil
+        parkingAltitudeAnchor = nil
+        repository?.clear()
         clearWaypoints()
     }
 }
