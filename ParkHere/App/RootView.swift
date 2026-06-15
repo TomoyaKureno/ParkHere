@@ -46,6 +46,8 @@ struct RootView: View {
                         TrackerView(store: waypointStore, locationManager: locationManager, altimeterManager: altimeterManager) {
                             appCoordinator.popToRoot()
                         }
+                    case .landmark(let isGallery):
+                        EmptyView()
                     }
                 }
             }

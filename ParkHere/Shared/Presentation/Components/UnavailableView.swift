@@ -8,19 +8,10 @@
 import SwiftUI
 
 struct UnavailableView: View {
-    let systemImage: String
-    let title: String
-    let subtitle: String
-    
-    init(
-        systemImage: String = "location.slash.fill",
-        title: String = "Location Access is Off",
-        subtitle: String = "Turn on your location services to save your parking spot and capture waypoints"
-    ) {
-        self.systemImage = systemImage
-        self.title = title
-        self.subtitle = subtitle
-    }
+    var opacity: Double = 1
+    var systemImage: String = "location.slash.fill"
+    var title: String = "Location Access is Off"
+    var subtitle: String = "Turn on your location services to save your parking spot and capture waypoints"
     
     var body: some View {
         Spacer()
