@@ -73,6 +73,9 @@ struct TrackerView: View {
             guard let delta = floorDeltaMeters else { return }
             displayedFloors = estimator.floors(deltaMeters: delta, previousFloors: displayedFloors)
         }
+        .onChange(of: store.trackingTargetIndex) { _, _ in
+            displayedFloors = 0   // reset saat target waypoint berganti
+        }
         .onChange(of: isInsideArrivalRadius) { _, newValue in
             updateArrivalState(isInsideArrivalRadius: newValue)
 
@@ -361,7 +364,7 @@ struct TrackerView: View {
     private var floorDeltaMeters: Double? {
         guard
             let current = altimeterManager.absoluteAltitude,
-            let anchor = store.parkingAltitudeAnchor?.absoluteAltitude
+            let anchor = store.currentTrackingAltitudeAnchor?.absoluteAltitude
         else { return nil }
         return anchor - current
     }

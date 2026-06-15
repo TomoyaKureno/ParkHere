@@ -16,6 +16,7 @@ struct ParkingWaypoint: Identifiable, Equatable {
     let latitude: Double?
     let longitude: Double?
     let horizontalAccuracy: Double?
+    let altitude: AltitudeSample?
 
     var coordinate: CLLocationCoordinate2D? {
         guard let latitude, let longitude else { return nil }
@@ -23,11 +24,12 @@ struct ParkingWaypoint: Identifiable, Equatable {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
-    init(image: UIImage, location: CLLocation?) {
+    init(image: UIImage, location: CLLocation?, altitude: AltitudeSample? = nil) {
         self.image = image
-        latitude = location?.coordinate.latitude
-        longitude = location?.coordinate.longitude
-        horizontalAccuracy = location?.horizontalAccuracy
+        self.latitude = location?.coordinate.latitude
+        self.longitude = location?.coordinate.longitude
+        self.horizontalAccuracy = location?.horizontalAccuracy
+        self.altitude = altitude
     }
 
     static func == (lhs: ParkingWaypoint, rhs: ParkingWaypoint) -> Bool {
@@ -69,6 +71,13 @@ final class WaypointStore: ObservableObject {
         else { return nil }
 
         return capturedWaypoints[trackingTargetIndex]
+    }
+    
+    var currentTrackingAltitudeAnchor: AltitudeSample? {
+        if isTrackingParkingSpot {
+            return parkingAltitudeAnchor
+        }
+        return currentTrackingWaypoint?.altitude
     }
 
     var currentTrackingCoordinate: CLLocationCoordinate2D? {
@@ -136,8 +145,8 @@ final class WaypointStore: ObservableObject {
         )
     }
 
-    func addWaypoint(_ image: UIImage, location: CLLocation?) {
-        capturedWaypoints.append(ParkingWaypoint(image: image, location: location))
+    func addWaypoint(_ image: UIImage, location: CLLocation?, altitude: AltitudeSample? = nil) {
+        capturedWaypoints.append(ParkingWaypoint(image: image, location: location, altitude: altitude))
     }
 
     func removeWaypoint(at index: Int) {

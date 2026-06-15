@@ -211,7 +211,7 @@ struct CameraView: View {
                         Spacer()
 
                         Button {
-                            store.addWaypoint(image, location: location)
+                            store.addWaypoint(image, location: location, altitude: altimeterManager.currentSample())
                             cameraManager.cameraState = .takePhoto
                         } label: {
                             Image(systemName: AppIcon.checkmark)
