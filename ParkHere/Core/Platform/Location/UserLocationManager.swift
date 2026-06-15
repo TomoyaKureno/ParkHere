@@ -2,7 +2,7 @@
 //  UserLocationManager.swift
 //  ParkHere
 //
-//  Created by Codex on 09/06/26.
+//  Created by Fathariq Dimas on 09/06/26.
 //
 
 import Combine
@@ -16,17 +16,45 @@ final class UserLocationManager: NSObject, ObservableObject {
     @Published private(set) var heading: CLHeading?
     @Published private(set) var statusText = "Getting current location"
     @Published private(set) var isRequestingLocation = false
+    @Published private(set) var needsHeadingCalibration = false
+    @Published private(set) var currentLandmark = CurrentLandmark.loading
 
     private let locationManager = CLLocationManager()
-    private let locationRequestTimeout: TimeInterval = 2
-    private let immediateAccuracyThreshold: CLLocationAccuracy = 10
-    private let maximumUsableAccuracy: CLLocationAccuracy = 25
-    private let recentLocationMaximumAge: TimeInterval = 5
+    private let landmarkResolver = CurrentLandmarkResolver()
+    private let displayedDistanceStep: CLLocationDistance = 1
+    private let targetArrivalRadius: CLLocationDistance = 5
+    private let targetExitRadius: CLLocationDistance = 8
+    private let captureDesiredAccuracy: CLLocationAccuracy = 5
+    private let captureLocationTimeout: TimeInterval = 3
+    private let reusableLocationMaximumAge: TimeInterval = 5
+    private let headingCalibrationShowAccuracyThreshold: CLLocationDirection = 35
+    private let headingCalibrationHideAccuracyThreshold: CLLocationDirection = 20
+    private let headingCalibrationRequiredBadUpdates = 3
+    private let headingCalibrationRequiredGoodUpdates = 2
+    private let landmarkRefreshDistance: CLLocationDistance = 50
     private let trackingSmoothingFactor = 0.45
-    private var pendingLocationRequest: ((CLLocation?) -> Void)?
-    private var pendingLocationTimeout: DispatchWorkItem?
-    private var pendingBestLocation: CLLocation?
+    private var pendingLocationCompletion: ((CLLocation?) -> Void)?
+    private var pendingBestCaptureLocation: CLLocation?
+    private var pendingCaptureLocationTask: Task<Void, Never>?
     private var latestRawLocation: CLLocation?
+    private var lastLandmarkLocation: CLLocation?
+    private var landmarkLookupTask: Task<Void, Never>?
+    private var poorHeadingUpdateCount = 0
+    private var goodHeadingUpdateCount = 0
+
+    var hasUsableLocation: Bool {
+        latestRawLocation != nil || currentLocation != nil
+    }
+
+    var isHeadingCalibratedForTracking: Bool {
+        guard let heading else { return false }
+
+        let accuracy = heading.headingAccuracy
+
+        return accuracy >= 0
+            && accuracy <= headingCalibrationHideAccuracyThreshold
+            && !needsHeadingCalibration
+    }
 
     override init() {
         authorizationStatus = locationManager.authorizationStatus
@@ -34,18 +62,15 @@ final class UserLocationManager: NSObject, ObservableObject {
         super.init()
 
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         locationManager.distanceFilter = kCLDistanceFilterNone
         locationManager.headingFilter = 1
+        locationManager.activityType = .otherNavigation
+        locationManager.pausesLocationUpdatesAutomatically = false
     }
 
     func requestAccessAndStartUpdating() {
-        let status = locationManager.authorizationStatus
-        if status == .notDetermined {
-            locationManager.requestWhenInUseAuthorization()
-        } else {
-            handleAuthorizationStatus(status)
-        }
+        updateAuthorizationStatus(locationManager.authorizationStatus)
     }
 
     func stopUpdating() {
@@ -54,20 +79,34 @@ final class UserLocationManager: NSObject, ObservableObject {
     }
 
     func requestCurrentLocation(completion: @escaping (CLLocation?) -> Void) {
+        pendingCaptureLocationTask?.cancel()
+        pendingBestCaptureLocation = bestCaptureLocation(
+            pendingBestCaptureLocation,
+            comparedTo: recentLocation(latestRawLocation)
+        )
+
         switch locationManager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
-            setPendingLocationRequest(completion)
+            pendingLocationCompletion = completion
+            isRequestingLocation = true
             statusText = "Getting current location"
+            startCaptureLocationTimeout()
             locationManager.requestLocation()
+
         case .notDetermined:
-            setPendingLocationRequest(completion)
+            pendingLocationCompletion = completion
+            isRequestingLocation = true
             statusText = "Waiting for location permission"
             locationManager.requestWhenInUseAuthorization()
+
         case .denied, .restricted:
             statusText = "Location permission is off"
+            isRequestingLocation = false
             completion(nil)
+
         @unknown default:
             statusText = "Location permission is unavailable"
+            isRequestingLocation = false
             completion(nil)
         }
     }
@@ -78,31 +117,32 @@ final class UserLocationManager: NSObject, ObservableObject {
             let targetCoordinate
         else { return nil }
 
-        let absoluteBearing = bearing(from: currentCoordinate, to: targetCoordinate)
-        let headingDegrees = heading?.trueHeading ?? heading?.magneticHeading
+        let targetBearing = bearing(from: currentCoordinate, to: targetCoordinate)
+        let deviceHeading = heading?.trueHeading ?? heading?.magneticHeading
 
-        guard let headingDegrees, headingDegrees >= 0 else {
-            return CGFloat(absoluteBearing)
+        guard let deviceHeading, deviceHeading >= 0 else {
+            return CGFloat(targetBearing)
         }
 
-        return CGFloat(normalizedDegrees(absoluteBearing - headingDegrees))
+        return CGFloat(normalizedDegrees(targetBearing - deviceHeading))
     }
 
     func distanceText(to targetCoordinate: CLLocationCoordinate2D?) -> String {
         guard let distance = distance(to: targetCoordinate) else { return "-- m" }
 
         if distance >= 1_000 {
-            return String(format: "%.1f km", distance / 1_000)
+            let kilometers = distance / 1_000
+            return "\(kilometers.formatted(.number.precision(.fractionLength(1)))) km"
         }
 
-        let roundedDistance = Int((distance / 5).rounded() * 5)
+        let roundedDistance = Int((distance / displayedDistanceStep).rounded() * displayedDistanceStep)
 
         return "\(max(roundedDistance, 0)) m"
     }
 
     func distance(to targetCoordinate: CLLocationCoordinate2D?) -> CLLocationDistance? {
         guard
-            let currentLocation,
+            let navigationLocation = latestRawLocation ?? currentLocation,
             let targetCoordinate
         else { return nil }
 
@@ -111,16 +151,11 @@ final class UserLocationManager: NSObject, ObservableObject {
             longitude: targetCoordinate.longitude
         )
 
-        return currentLocation.distance(from: targetLocation)
+        return navigationLocation.distance(from: targetLocation)
     }
 
-    func arrivalRadius(targetAccuracy: CLLocationAccuracy?) -> CLLocationDistance {
-        let baseRadius: CLLocationDistance = 10
-        let currentAccuracy = validAccuracy(currentLocation?.horizontalAccuracy)
-        let targetAccuracy = validAccuracy(targetAccuracy)
-        let accuracyPadding = min((currentAccuracy + targetAccuracy) * 0.25, 8)
-
-        return baseRadius + accuracyPadding
+    func isInsideArrivalRadius(targetCoordinate: CLLocationCoordinate2D?) -> Bool {
+        isInsideArrivalRadius(targetCoordinate: targetCoordinate, targetAccuracy: nil)
     }
 
     func isInsideArrivalRadius(
@@ -131,6 +166,14 @@ final class UserLocationManager: NSObject, ObservableObject {
 
         return distance <= arrivalRadius(targetAccuracy: targetAccuracy)
     }
+
+    func arrivalRadius(targetAccuracy: CLLocationAccuracy?) -> CLLocationDistance {
+        let currentAccuracy = validAccuracy(currentLocation?.horizontalAccuracy)
+        let targetAccuracy = validAccuracy(targetAccuracy)
+        let accuracyPadding = min((currentAccuracy + targetAccuracy) * 0.25, 8)
+
+        return targetArrivalRadius + accuracyPadding
+    }
     
     func setBackgroundUpdates(_ enabled: Bool) {
         guard authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse else {
@@ -140,73 +183,198 @@ final class UserLocationManager: NSObject, ObservableObject {
         locationManager.pausesLocationUpdatesAutomatically = !enabled
     }
 
-    private func setPendingLocationRequest(_ completion: @escaping (CLLocation?) -> Void) {
-        pendingLocationTimeout?.cancel()
-        pendingLocationRequest = completion
-        pendingBestLocation = recentLocation(latestRawLocation) ?? recentLocation(currentLocation)
-        isRequestingLocation = true
+    func isOutsideArrivalExitRadius(targetCoordinate: CLLocationCoordinate2D?) -> Bool {
+        guard let distance = distance(to: targetCoordinate) else { return true }
 
-        let timeout = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-
-                let location = self.pendingBestLocation
-                    ?? self.recentLocation(self.latestRawLocation)
-                    ?? self.recentLocation(self.currentLocation)
-                self.statusText = location == nil ? "Location unavailable" : self.statusText(for: location)
-                self.completePendingRequest(with: location)
-            }
-        }
-
-        pendingLocationTimeout = timeout
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + locationRequestTimeout,
-            execute: timeout
-        )
+        return distance > targetExitRadius
     }
 
-    private func completePendingRequest(with location: CLLocation?) {
-        pendingLocationTimeout?.cancel()
-        pendingLocationTimeout = nil
-
-        let request = pendingLocationRequest
-        pendingLocationRequest = nil
-        pendingBestLocation = nil
-        isRequestingLocation = false
-
-        if let location {
-            latestRawLocation = location
-            updateTrackingLocation(with: location)
-            statusText = statusText(for: location)
-        }
-
-        request?(location)
-    }
-
-    private func handleAuthorizationStatus(_ status: CLAuthorizationStatus) {
+    private func updateAuthorizationStatus(_ status: CLAuthorizationStatus) {
         authorizationStatus = status
 
         switch status {
         case .authorizedAlways, .authorizedWhenInUse:
             statusText = "Location data saves automatically"
             locationManager.startUpdatingLocation()
+            startHeadingUpdatesIfAvailable()
 
-            if CLLocationManager.headingAvailable() {
-                locationManager.startUpdatingHeading()
-            }
-
-            if pendingLocationRequest != nil {
+            if pendingLocationCompletion != nil {
+                startCaptureLocationTimeout()
                 locationManager.requestLocation()
             }
+
         case .notDetermined:
             statusText = "Waiting for location permission"
+            locationManager.requestWhenInUseAuthorization()
+
         case .denied, .restricted:
             statusText = "Location permission is off"
-            completePendingRequest(with: nil)
+            completeCurrentLocationRequest(with: nil)
+
         @unknown default:
             statusText = "Location permission is unavailable"
-            completePendingRequest(with: nil)
+            completeCurrentLocationRequest(with: nil)
         }
+    }
+
+    private func startHeadingUpdatesIfAvailable() {
+        guard CLLocationManager.headingAvailable() else { return }
+
+        locationManager.startUpdatingHeading()
+    }
+
+    private func handleUpdatedLocations(_ locations: [CLLocation]) {
+        guard let latestLocation = locations.last(where: { isUsableLocation($0) }) else {
+            return
+        }
+
+        latestRawLocation = latestLocation
+        currentLocation = smoothedLocation(from: currentLocation, to: latestLocation)
+        statusText = "Location data saves automatically"
+        updateCurrentLandmarkIfNeeded(for: latestLocation)
+        updatePendingCaptureLocation(with: latestLocation)
+    }
+
+    private func completeCurrentLocationRequest(with location: CLLocation?) {
+        pendingCaptureLocationTask?.cancel()
+        pendingCaptureLocationTask = nil
+
+        guard let completion = pendingLocationCompletion else {
+            isRequestingLocation = false
+            pendingBestCaptureLocation = nil
+            return
+        }
+
+        pendingLocationCompletion = nil
+        pendingBestCaptureLocation = nil
+        isRequestingLocation = false
+        completion(location)
+    }
+
+    private func startCaptureLocationTimeout() {
+        let timeoutInMilliseconds = Int(captureLocationTimeout * 1_000)
+
+        pendingCaptureLocationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(timeoutInMilliseconds))
+            guard let self, pendingLocationCompletion != nil else { return }
+
+            completeCurrentLocationRequest(
+                with: pendingBestCaptureLocation ?? recentLocation(latestRawLocation)
+            )
+        }
+    }
+
+    private func updatePendingCaptureLocation(with location: CLLocation) {
+        guard pendingLocationCompletion != nil else { return }
+
+        pendingBestCaptureLocation = bestCaptureLocation(
+            pendingBestCaptureLocation,
+            comparedTo: location
+        )
+
+        guard location.horizontalAccuracy <= captureDesiredAccuracy else { return }
+
+        completeCurrentLocationRequest(with: location)
+    }
+
+    private func bestCaptureLocation(
+        _ currentBestLocation: CLLocation?,
+        comparedTo candidateLocation: CLLocation?
+    ) -> CLLocation? {
+        guard
+            let candidateLocation,
+            candidateLocation.horizontalAccuracy >= 0
+        else { return currentBestLocation }
+
+        guard let currentBestLocation else { return candidateLocation }
+
+        return candidateLocation.horizontalAccuracy < currentBestLocation.horizontalAccuracy
+            ? candidateLocation
+            : currentBestLocation
+    }
+
+    private func recentLocation(_ location: CLLocation?) -> CLLocation? {
+        guard
+            let location,
+            isUsableLocation(location),
+            abs(location.timestamp.timeIntervalSinceNow) <= reusableLocationMaximumAge
+        else { return nil }
+
+        return location
+    }
+
+    private func isUsableLocation(_ location: CLLocation) -> Bool {
+        location.horizontalAccuracy >= 0
+    }
+
+    private func validAccuracy(_ accuracy: CLLocationAccuracy?) -> CLLocationAccuracy {
+        guard let accuracy, accuracy > 0 else { return 0 }
+
+        return accuracy
+    }
+
+    private func updateCurrentLandmarkIfNeeded(for location: CLLocation) {
+        if let lastLandmarkLocation, location.distance(from: lastLandmarkLocation) < landmarkRefreshDistance {
+            return
+        }
+
+        lastLandmarkLocation = location
+        landmarkLookupTask?.cancel()
+        landmarkLookupTask = Task { @MainActor [weak self] in
+            await self?.updateCurrentLandmark(near: location)
+        }
+    }
+
+    private func updateCurrentLandmark(near location: CLLocation) async {
+        currentLandmark = await landmarkResolver.landmark(near: location)
+    }
+
+    private func updateHeadingCalibrationState(with heading: CLHeading) {
+        let accuracy = heading.headingAccuracy
+        let hasPoorAccuracy = accuracy < 0 || accuracy > headingCalibrationShowAccuracyThreshold
+        let hasGoodAccuracy = accuracy >= 0 && accuracy <= headingCalibrationHideAccuracyThreshold
+
+        if needsHeadingCalibration {
+            goodHeadingUpdateCount = hasGoodAccuracy ? goodHeadingUpdateCount + 1 : 0
+
+            guard goodHeadingUpdateCount >= headingCalibrationRequiredGoodUpdates else { return }
+
+            needsHeadingCalibration = false
+            poorHeadingUpdateCount = 0
+            goodHeadingUpdateCount = 0
+        } else {
+            poorHeadingUpdateCount = hasPoorAccuracy ? poorHeadingUpdateCount + 1 : 0
+
+            guard poorHeadingUpdateCount >= headingCalibrationRequiredBadUpdates else { return }
+
+            needsHeadingCalibration = true
+            poorHeadingUpdateCount = 0
+            goodHeadingUpdateCount = 0
+        }
+    }
+
+    private func smoothedLocation(
+        from currentLocation: CLLocation?,
+        to newLocation: CLLocation
+    ) -> CLLocation {
+        guard let currentLocation else { return newLocation }
+
+        let currentCoordinate = currentLocation.coordinate
+        let newCoordinate = newLocation.coordinate
+        let smoothedCoordinate = CLLocationCoordinate2D(
+            latitude: currentCoordinate.latitude + (newCoordinate.latitude - currentCoordinate.latitude) * trackingSmoothingFactor,
+            longitude: currentCoordinate.longitude + (newCoordinate.longitude - currentCoordinate.longitude) * trackingSmoothingFactor
+        )
+
+        return CLLocation(
+            coordinate: smoothedCoordinate,
+            altitude: newLocation.altitude,
+            horizontalAccuracy: newLocation.horizontalAccuracy,
+            verticalAccuracy: newLocation.verticalAccuracy,
+            course: newLocation.course,
+            speed: newLocation.speed,
+            timestamp: newLocation.timestamp
+        )
     }
 
     private func bearing(
@@ -232,94 +400,12 @@ final class UserLocationManager: NSObject, ObservableObject {
         return normalized >= 0 ? normalized : normalized + 360
     }
 
-    private func handleUpdatedLocations(_ locations: [CLLocation]) {
-        guard let bestLocation = bestLocation(in: locations) else { return }
-
-        latestRawLocation = bestLocation
-        updateTrackingLocation(with: bestLocation)
-        statusText = statusText(for: bestLocation)
-
-        guard pendingLocationRequest != nil else { return }
-
-        pendingBestLocation = betterLocation(
-            pendingBestLocation,
-            than: bestLocation
-        )
-
-        if bestLocation.horizontalAccuracy <= immediateAccuracyThreshold {
-            completePendingRequest(with: bestLocation)
-        }
-    }
-
-    private func bestLocation(in locations: [CLLocation]) -> CLLocation? {
-        locations
-            .compactMap(recentLocation)
-            .min { lhs, rhs in
-                lhs.horizontalAccuracy < rhs.horizontalAccuracy
-            }
-    }
-
-    private func betterLocation(_ currentBestLocation: CLLocation?, than candidateLocation: CLLocation) -> CLLocation {
-        guard let currentBestLocation else { return candidateLocation }
-
-        return candidateLocation.horizontalAccuracy < currentBestLocation.horizontalAccuracy
-            ? candidateLocation
-            : currentBestLocation
-    }
-
-    private func recentLocation(_ location: CLLocation?) -> CLLocation? {
-        guard
-            let location,
-            location.horizontalAccuracy > 0,
-            location.horizontalAccuracy <= maximumUsableAccuracy,
-            Date().timeIntervalSince(location.timestamp) <= recentLocationMaximumAge
-        else { return nil }
-
-        return location
-    }
-
-    private func validAccuracy(_ accuracy: CLLocationAccuracy?) -> CLLocationAccuracy {
-        guard let accuracy, accuracy > 0 else { return 0 }
-
-        return accuracy
-    }
-
-    private func statusText(for location: CLLocation?) -> String {
-        guard location != nil else { return "Location unavailable" }
-
-        return "Location data saves automatically"
-    }
-
-    private func updateTrackingLocation(with rawLocation: CLLocation) {
-        guard let existingLocation = currentLocation else {
-            self.currentLocation = rawLocation
-
-            return
-        }
-
-        let currentCoordinate = existingLocation.coordinate
-        let rawCoordinate = rawLocation.coordinate
-        let smoothedCoordinate = CLLocationCoordinate2D(
-            latitude: currentCoordinate.latitude + (rawCoordinate.latitude - currentCoordinate.latitude) * trackingSmoothingFactor,
-            longitude: currentCoordinate.longitude + (rawCoordinate.longitude - currentCoordinate.longitude) * trackingSmoothingFactor
-        )
-
-        currentLocation = CLLocation(
-            coordinate: smoothedCoordinate,
-            altitude: rawLocation.altitude,
-            horizontalAccuracy: rawLocation.horizontalAccuracy,
-            verticalAccuracy: rawLocation.verticalAccuracy,
-            course: rawLocation.course,
-            speed: rawLocation.speed,
-            timestamp: rawLocation.timestamp
-        )
-    }
 }
 
 extension UserLocationManager: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
-            handleAuthorizationStatus(manager.authorizationStatus)
+            updateAuthorizationStatus(manager.authorizationStatus)
         }
     }
 
@@ -335,13 +421,18 @@ extension UserLocationManager: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         Task { @MainActor in
             heading = newHeading
+            updateHeadingCalibrationState(with: newHeading)
         }
+    }
+
+    nonisolated func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool {
+        false
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
             statusText = "Location unavailable"
-            completePendingRequest(with: nil)
+            completeCurrentLocationRequest(with: nil)
         }
     }
 }

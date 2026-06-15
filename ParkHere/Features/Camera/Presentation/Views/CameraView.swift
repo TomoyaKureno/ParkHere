@@ -6,25 +6,31 @@
 //
 
 import AVFoundation
+import CoreLocation
 import SwiftUI
 
 struct CameraView: View {
-    @ObservedObject var store: WaypointStore
+    @ObservedObject var store: LandmarkStore
     @ObservedObject var locationManager: UserLocationManager
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var altimeterManager: AltimeterManager
+    let retakeIndex: Int?
 
     let onDone: () -> Void
     let onPop: () -> Void
+    let onTapLandmarks: () -> Void
+
+    private let landmarkResolver = CurrentLandmarkResolver()
 
     @StateObject private var cameraManager = CameraManager()
     @State private var pinchStartZoom: CGFloat = 1.0
     @State private var isPinching = false
-    @State private var isWaypointSheetPresented = false
     @State private var showDoneAlert = false
     @State private var didFinishCapture = false
+    @State private var isSavingPreviewLandmark = false
+    @State private var isOpeningLandmarkGallery = false
     @AppStorage("hasSeenCameraOverlay") private var hasSeenCameraOverlay = false
     @State private var showOverlay = false
-    @State private var overlayIndex: Int = 0
     @State private var showDiscardAlert = false
     @AppStorage("hasSeenFirstPhotoAlert") private var hasSeenFirstPhotoAlert = false
     @State private var showFirstPhotoAlert = false
@@ -37,227 +43,18 @@ struct CameraView: View {
             if altimeterManager.isMotionAccessDenied {
                 VStack { UnavailableView.motion }
             } else {
-                if case .takePhoto = cameraManager.cameraState {
-                    cameraContent
-
-                    VStack {
-                        HStack(alignment: .top, spacing: 8) {
-                            HStack(alignment: .top, spacing: 16) {
-                                Button {
-                                    if store.capturedWaypoints.isEmpty {
-                                        cancelCapture()
-                                    } else {
-                                        showDiscardAlert = true
-                                    }
-                                } label: {
-                                    Image(systemName: AppIcon.chevronLeft)
-                                        .font(.title3.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 52, height: 52)
-                                }
-                                .glassEffect(.regular, in: Circle())
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(store.capturedWaypoints.isEmpty ? "Capture Parking Spot" : "Capture Landmark \(store.capturedWaypoints.count)")
-                                        .font(.title3Bold)
-
-                                    Text(store.capturedWaypoints.isEmpty ? "Start by capturing photo around your parking spot (car or unique object)" : "Capture multiple landmarks to help guide you back to your parking spot")
-                                        .font(.subheadlineReg)
-                                }
-                                .foregroundStyle(.white)
-                            }
-
-                            Spacer(minLength: 0)
-
-                            Button {
-                                overlayIndex = 0
-                                withAnimation {
-                                    showOverlay = true
-                                }
-                            } label: {
-                                Image(systemName: AppIcon.questionMarkCircle)
-                                    .font(.title3.weight(.semibold))
-                                    .foregroundStyle(Color.brandPrimaryBlue)
-                                    .frame(width: 52, height: 52)
-                            }
-                            .glassEffect(.regular, in: Circle())
-                        }
-                        .padding([.top, .horizontal], 16)
-                        .padding(.bottom, 40)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: Color.black.opacity(0.5), location: 0.0),
-                                    .init(color: Color.black.opacity(0.45), location: 0.25),
-                                    .init(color: Color.black.opacity(0.0), location: 1.0)
-                                ]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-
-                        Spacer()
-
-                        VStack(spacing: 24) {
-                            VStack(spacing: 12) {
-                                HStack(spacing: 16) {
-                                    if cameraManager.cameraPosition == .back {
-                                        ForEach(Array(cameraManager.zoomFactors.enumerated()), id: \.offset) { index, zoomFactor in
-                                            zoomButton(
-                                                zoomFactor: zoomFactor,
-                                                zoomMax: index + 1 < cameraManager.zoomFactors.count ? cameraManager.zoomFactors[index + 1] : cameraManager.maxZoomFactor,
-                                                isLast: index == cameraManager.zoomFactors.count - 1
-                                            )
-                                        }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .overlay(alignment: .topTrailing) {
-                                    Button {
-                                        cameraManager.cycleFlashMode()
-                                    } label: {
-                                        Image(systemName: cameraManager.flashMode.iconName)
-                                            .font(.footnote)
-                                            .foregroundStyle(cameraManager.flashMode == .off ? .white : .yellow)
-                                            .padding(8)
-                                            .background(.black.opacity(0.25))
-                                            .clipShape(Circle())
-                                    }
-                                    .disabled(!cameraManager.isFlashAvailable)
-                                }
-
-                                Text(locationManager.statusText)
-                                    .font(.footnote)
-                                    .foregroundStyle(.white)
-                            }
-
-                            HStack {
-                                Button {
-                                    isWaypointSheetPresented = true
-                                } label: {
-                                    if let lastImage = store.capturedImages.last {
-                                        Image(uiImage: lastImage)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 56, height: 56)
-                                            .clipShape(Circle())
-                                    } else {
-                                        Circle()
-                                            .fill(Color.white.opacity(0.16))
-                                            .frame(width: 56, height: 56)
-                                    }
-                                }
-                                .disabled(store.capturedImages.isEmpty)
-
-                                Spacer()
-
-                                Button {
-                                    locationManager.requestCurrentLocation { location in
-                                        guard let location else { return }
-                                        
-                                        let altitude = altimeterManager.currentSample()
-                                        store.saveParkingLocation(location, altitude: altitude)
-
-                                        cameraManager.takePhoto(location: location)
-                                    }
-                                } label: {
-                                    ZStack {
-                                        Circle()
-                                            .fill(.white)
-                                            .frame(width: 64, height: 64)
-
-                                        if cameraManager.isLoading || locationManager.isRequestingLocation {
-                                            ProgressView()
-                                                .tint(.black)
-                                        } else {
-                                            Text("\(store.capturedWaypoints.count)")
-                                                .font(.title2)
-                                                .bold()
-                                                .foregroundStyle(.black)
-                                        }
-                                    }
-                                }
-                                .disabled(cameraManager.isLoading || locationManager.isRequestingLocation)
-                                .padding(8)
-                                .overlay {
-                                    Circle().stroke(.white, lineWidth: 4)
-                                }
-
-                                Spacer()
-
-                                Button {
-                                    showDoneAlert = true
-                                } label: {
-                                    Text("Save")
-                                }
-                                .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
-                                .disabled(store.capturedWaypoints.isEmpty)
-                            }
-                            .padding(.horizontal, 24)
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 48)
-                        .padding(.bottom, 40)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: Color.black.opacity(0.5), location: 0.0),
-                                    .init(color: Color.black.opacity(0.45), location: 0.25),
-                                    .init(color: Color.black.opacity(0.0), location: 1.0)
-                                ]),
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                    }
-                    .ignoresSafeArea(edges: .bottom)
-                } else if case .previewPhoto(_, let image, let location) = cameraManager.cameraState {
-                    Image(uiImage: image)
-                        .resizable()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .ignoresSafeArea()
-
-                    HStack {
-                        Button {
-                            cameraManager.cameraState = .takePhoto
-                        } label: {
-                            Image(systemName: AppIcon.xMark)
-                                .bold()
-                                .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .glassEffect(.regular)
-                        }
-
-                        Spacer()
-
-                        Button {
-                            store.addWaypoint(image, location: location, altitude: altimeterManager.currentSample())
-                            cameraManager.cameraState = .takePhoto
-                            if !hasSeenFirstPhotoAlert {
-                                showFirstPhotoAlert = true
-                            }
-                        } label: {
-                            Image(systemName: AppIcon.checkmark)
-                                .bold()
-                                .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .glassEffect(.regular)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                }
+                takePhotoView
             }
+
             CameraOverlayView(isPresented: $showOverlay)
         }
         .onAppear {
+            isOpeningLandmarkGallery = false
             pinchStartZoom = cameraManager.zoomFactor
             cameraManager.startSession()
             locationManager.requestAccessAndStartUpdating()
             altimeterManager.start()
-            
+
             if !hasSeenCameraOverlay {
                 showOverlay = true
                 hasSeenCameraOverlay = true
@@ -267,49 +64,41 @@ struct CameraView: View {
             guard !isPinching else { return }
             pinchStartZoom = newValue
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+
+            cameraManager.startSession()
+        }
         .onDisappear {
             cameraManager.stopSession()
+            altimeterManager.stop()
 
-            if !didFinishCapture {
+            if !didFinishCapture && retakeIndex == nil && !isOpeningLandmarkGallery {
                 store.clearParkingSpot()
             }
         }
-        .gesture(
-            MagnificationGesture()
-                .onChanged { value in
-                    guard cameraManager.cameraPosition == .back else { return }
-
-                    isPinching = true
-                    let newZoom = pinchStartZoom * value
-                    cameraManager.setZoomFactor(newZoom)
-                }
-                .onEnded { _ in
-                    isPinching = false
-                    pinchStartZoom = cameraManager.zoomFactor
-                }
-        )
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .alert("Save parking spot?", isPresented: $showDoneAlert) {
-            Button("Not Yet", role: .cancel) {
-                showDoneAlert = false
+        .alert("Ready to save?", isPresented: $showDoneAlert) {
+            Button("Review Landmarks", role: .cancel) {
+                openLandmarkGallery()
             }
 
-            Button("Save", role: .none) {
+            Button("Save & Finish", role: .none) {
                 finishCapture()
             }
         } message: {
-            Text("Your parking spot and landmark photos will be saved to help you find your car later.")
+            Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your landmarks before saving.")
         }
-        .alert("Discard the landmark photos?", isPresented: $showDiscardAlert) {
-            Button("Keep Photo", role: .cancel) {
+        .alert("Go back to Home?", isPresented: $showDiscardAlert) {
+            Button("Stay", role: .cancel) {
                 showDiscardAlert = false
             }
-            Button("Discard", role: .destructive) {
+            Button("Go Back", role: .destructive) {
                 cancelCapture()
             }
         } message: {
-            Text("Any landmark photos you've captured will be lost if you leave now")
+            Text("All captured parking spot and landmark photos will be deleted.")
         }
         .alert("Great, you have taken your first photo!", isPresented: $showFirstPhotoAlert) {
             Button("Got it!", role: .cancel) {
@@ -319,34 +108,333 @@ struct CameraView: View {
         } message: {
             Text("Add more pictures as you walk further.")
         }
-        .sheet(isPresented: $isWaypointSheetPresented) {
-            WaypointSheet(
-                onSaveParkingSpot: {
-                    isWaypointSheetPresented = false
-                    finishCapture()
+    }
+
+    private var takePhotoView: some View {
+        ZStack {
+            cameraContent
+
+            VStack {
+                headerSection
+
+                Spacer()
+
+                bottomControlsSection
+            }
+            .ignoresSafeArea(edges: .bottom)
+
+            if cameraManager.shouldShowSettingsButton {
+                cameraPermissionUnavailableView
+            }
+        }
+        .gesture(pinchGesture)
+    }
+
+    private var headerSection: some View {
+        HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: 16) {
+                Button {
+                    if store.capturedLandmarks.isEmpty {
+                        cancelCapture()
+                    } else {
+                        showDiscardAlert = true
+                    }
+                } label: {
+                    Image(systemName: AppIcon.chevronLeft)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
                 }
+                .glassEffect(.regular, in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(cameraTitle)
+                        .font(.title3Bold)
+
+                    Text(cameraSubtitle)
+                        .font(.subheadlineReg)
+                }
+                .foregroundStyle(.white)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                withAnimation {
+                    showOverlay = true
+                }
+            } label: {
+                Image(systemName: AppIcon.questionMarkCircle)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.brandPrimaryBlue)
+                    .frame(width: 52, height: 52)
+            }
+            .glassEffect(.regular, in: Circle())
+        }
+        .padding([.top, .horizontal], 16)
+        .padding(.bottom, 40)
+        .frame(maxWidth: .infinity)
+        .background(topGradient)
+    }
+
+    private var cameraTitle: String {
+        if retakeIndex != nil {
+            return "Retake Landmark"
+        }
+
+        return store.capturedLandmarks.isEmpty
+            ? "Capture Parking Spot"
+            : "Capture Landmark \(store.capturedLandmarks.count)"
+    }
+
+    private var cameraSubtitle: String {
+        if retakeIndex != nil {
+            return "Retake this photo to keep your route landmarks complete."
+        }
+
+        return store.capturedLandmarks.isEmpty
+            ? "Start by capturing photo around your parking spot (car or unique object)"
+            : "Capture multiple landmarks to help guide you back to your parking spot"
+    }
+
+    private var bottomControlsSection: some View {
+        VStack(spacing: 24) {
+            zoomAndStatusSection
+            captureControlsSection
+        }
+        .padding(.horizontal)
+        .padding(.top, 48)
+        .padding(.bottom, 40)
+        .frame(maxWidth: .infinity)
+        .background(bottomGradient)
+    }
+
+    private var zoomAndStatusSection: some View {
+        VStack(spacing: 12) {
+            zoomButtonsSection
+
+            Text(locationManager.statusText)
+                .font(.footnote)
+                .foregroundStyle(.white)
+        }
+    }
+
+    private var zoomButtonsSection: some View {
+        HStack(spacing: 16) {
+            if cameraManager.cameraPosition == .back {
+                ForEach(Array(cameraManager.zoomFactors.enumerated()), id: \.offset) { index, zoomFactor in
+                    zoomButton(
+                        zoomFactor: zoomFactor,
+                        zoomMax: index + 1 < cameraManager.zoomFactors.count ? cameraManager.zoomFactors[index + 1] : cameraManager.maxZoomFactor,
+                        isLast: index == cameraManager.zoomFactors.count - 1
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .topTrailing) {
+            flashButton
+        }
+    }
+
+    private var flashButton: some View {
+        Button {
+            cameraManager.cycleFlashMode()
+        } label: {
+            Image(systemName: cameraManager.flashMode.iconName)
+                .font(.footnote)
+                .foregroundStyle(cameraManager.flashMode == .off ? .white : .yellow)
+                .padding(8)
+                .background(.black.opacity(0.25))
+                .clipShape(Circle())
+        }
+        .disabled(!cameraManager.isFlashAvailable)
+    }
+
+    private var captureControlsSection: some View {
+        HStack {
+            thumbnailButton
+            Spacer()
+            captureButton
+            Spacer()
+            doneButton
+        }
+        .padding(.horizontal, 24)
+    }
+
+    private var thumbnailButton: some View {
+        Button {
+            openLandmarkGallery()
+        } label: {
+            if let lastImage = store.capturedLandmarks.last?.image {
+                Image(uiImage: lastImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 56, height: 56)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color.white.opacity(0.16))
+                    .frame(width: 56, height: 56)
+            }
+        }
+        .disabled(store.capturedLandmarks.isEmpty || retakeIndex != nil)
+    }
+
+    private var captureButton: some View {
+        let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation || isSavingPreviewLandmark
+
+        return Button {
+            locationManager.requestCurrentLocation { location in
+                guard let location else { return }
+
+                cameraManager.takePhoto(location: location) { image, location in
+                    saveCapturedLandmark(image: image, location: location)
+                }
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.white)
+                    .frame(width: 64, height: 64)
+
+                if isBusy {
+                    ProgressView()
+                        .tint(.black)
+                } else if retakeIndex == nil {
+                    Text("\(store.capturedLandmarks.count)")
+                        .font(.title2)
+                        .bold()
+                        .foregroundStyle(.black)
+                }
+            }
+        }
+        .disabled(isBusy)
+        .padding(8)
+        .overlay {
+            Circle().stroke(.white, lineWidth: 4)
+        }
+    }
+
+    private var doneButton: some View {
+        Button {
+            showDoneAlert = true
+        } label: {
+            Text("Save")
+        }
+        .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
+        .disabled(store.capturedLandmarks.isEmpty || !store.retakeLandmarkIDs.isEmpty || retakeIndex != nil)
+    }
+
+    private var topGradient: some View {
+        LinearGradient(
+            gradient: Gradient(stops: [
+                .init(color: Color.black.opacity(0.5), location: 0.0),
+                .init(color: Color.black.opacity(0.45), location: 0.25),
+                .init(color: Color.black.opacity(0.0), location: 1.0)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var bottomGradient: some View {
+        LinearGradient(
+            gradient: Gradient(stops: [
+                .init(color: Color.black.opacity(0.5), location: 0.0),
+                .init(color: Color.black.opacity(0.45), location: 0.25),
+                .init(color: Color.black.opacity(0.0), location: 1.0)
+            ]),
+            startPoint: .bottom,
+            endPoint: .top
+        )
+    }
+
+    private var pinchGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                guard cameraManager.cameraPosition == .back else { return }
+
+                isPinching = true
+                let newZoom = pinchStartZoom * value
+                cameraManager.setZoomFactor(newZoom)
+            }
+            .onEnded { _ in
+                isPinching = false
+                pinchStartZoom = cameraManager.zoomFactor
+            }
+    }
+
+    private var cameraPermissionUnavailableView: some View {
+        UnavailableView(
+            opacity: 0.9,
+            systemImage: AppIcon.unavailable,
+            title: "Camera Access is denied or restricted",
+            subtitle: "Camera access is required to take the photo.",
+            buttonTitle: "Open Settings"
+        )
+    }
+
+    private func saveCapturedLandmark(image: UIImage, location: CLLocation?) {
+        guard !isSavingPreviewLandmark else { return }
+
+        isSavingPreviewLandmark = true
+        let altitude = altimeterManager.currentSample()
+        let landmarkID: UUID?
+
+        if let retakeIndex {
+            landmarkID = store.replaceLandmark(
+                at: retakeIndex,
+                image: image,
+                location: location,
+                landmark: .loading,
+                altitude: altitude
             )
-            .environmentObject(store)
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+            isSavingPreviewLandmark = false
+            finishCapture()
+        } else {
+            landmarkID = store.addLandmark(
+                image,
+                location: location,
+                landmark: .loading,
+                altitude: altitude
+            )
+            isSavingPreviewLandmark = false
+
+            if !hasSeenFirstPhotoAlert {
+                showFirstPhotoAlert = true
+            }
+        }
+
+        guard let landmarkID else { return }
+
+        let resolver = landmarkResolver
+        let landmarkStore = store
+
+        Task { @MainActor in
+            let landmark = await resolver.landmark(near: location)
+            landmarkStore.updateCapturedLandmark(id: landmarkID, landmark: landmark)
         }
     }
 
     @ViewBuilder
     private var cameraContent: some View {
         #if targetEnvironment(simulator)
-        cameraUnavailableView(
-            message: "Camera preview is unavailable in Simulator. Run the app on a real iPhone to use the camera."
-        )
+            UnavailableView(
+                systemImage: AppIcon.unavailable,
+                title: "Camera Access is denied or restricted",
+                subtitle: "Camera preview is unavailable in Simulator. Run the app on a real iPhone to use the camera.",
+                buttonTitle: "Open Settings"
+            )
         #else
-        if let errorMessage = cameraManager.errorMessage {
-            cameraUnavailableView(message: errorMessage)
-        } else {
-            CameraPreview(session: cameraManager.session) { devicePoint, _ in
-                cameraManager.focus(at: devicePoint)
+            if let errorMessage = cameraManager.errorMessage {
+                cameraUnavailableView(message: errorMessage)
+            } else {
+                CameraPreview(session: cameraManager.session) { devicePoint, _ in
+                    cameraManager.focus(at: devicePoint)
+                }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
-        }
         #endif
     }
 
@@ -396,12 +484,23 @@ struct CameraView: View {
     }
 
     private func cancelCapture() {
-        store.clearParkingSpot()
+        if retakeIndex == nil {
+            store.clearParkingSpot()
+        }
+
         onPop()
     }
 
     private func finishCapture() {
         didFinishCapture = true
         onDone()
+    }
+
+    private func openLandmarkGallery() {
+        guard !store.capturedLandmarks.isEmpty else { return }
+
+        showDoneAlert = false
+        isOpeningLandmarkGallery = true
+        onTapLandmarks()
     }
 }

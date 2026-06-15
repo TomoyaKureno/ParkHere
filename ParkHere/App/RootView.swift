@@ -5,12 +5,12 @@
 //  Created by Fathariq Dimas on 06/06/26.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct RootView: View {
     @StateObject private var appCoordinator = AppCoordinator()
-    @StateObject private var waypointStore = WaypointStore() // nb: environment object is used when a view needs access to an object created somewhere above it
+    @StateObject private var landmarkStore = LandmarkStore()
     @StateObject private var locationManager = UserLocationManager()
     @StateObject private var altimeterManager = AltimeterManager()
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
@@ -37,38 +37,71 @@ struct RootView: View {
         } else {
             NavigationStack(path: $appCoordinator.path) {
                 HomeView(
-                    store: waypointStore,
+                    store: landmarkStore,
                     locationManager: locationManager,
                     onSaveParkingSpot: {
-                        appCoordinator.push(.camera)
+                        appCoordinator.push(.camera(retakeIndex: nil))
                     },
                     onFindParkingSpot: {
-                        waypointStore.prepareTracking()
+                        landmarkStore.prepareTracking()
                         appCoordinator.push(.tracker)
                     }
                 )
                 .navigationDestination(for: AppRoute.self) { route in
                     switch route {
-                    case .camera:
-                        CameraView(store: waypointStore, locationManager: locationManager, altimeterManager: altimeterManager) {
+                    case .camera(let retakeIndex):
+                        CameraView(
+                            store: landmarkStore,
+                            locationManager: locationManager,
+                            altimeterManager: altimeterManager,
+                            retakeIndex: retakeIndex
+                        ) {
                             appCoordinator.pop()
                         } onPop: {
                             appCoordinator.pop()
+                        } onTapLandmarks: {
+                            appCoordinator.push(
+                                .landmark(isGallery: true)
+                            )
                         }
                     case .tracker:
-                        TrackerView(store: waypointStore, locationManager: locationManager, altimeterManager: altimeterManager) {
+                        TrackerView(store: landmarkStore, locationManager: locationManager, altimeterManager: altimeterManager) {
                             appCoordinator.popToRoot()
+                        } onTapBack: {
+                            appCoordinator.pop()
+                        } onTapLandmarks: { isGallery in
+                            appCoordinator.push(
+                                .landmark(isGallery: isGallery)
+                            )
+                        }
+                    case .landmark(let isGallery):
+                        LandmarksView(
+                            store: landmarkStore,
+                            isGallery: isGallery,
+                            currentLandmarkIndex: currentLandmarkIndex()
+                        ) {
+                            appCoordinator.pop()
+                        } onUseLandmark: { index in
+                            landmarkStore.useLandmarkInstead(at: index)
+                            appCoordinator.pop()
+                        } onRetakeLandmark: { index in
+                            appCoordinator.push(.camera(retakeIndex: index))
                         }
                     }
                 }
             }
-            .environmentObject(appCoordinator) // Share navigation
             .task {
                 let repository = ParkingRepository(modelContext: modelContext)
-                waypointStore.attach(repository: repository)
-                waypointStore.restoreFromPresistence()
+                landmarkStore.attach(repository: repository)
+                landmarkStore.restoreFromPersistence()
             }
         }
+    }
+
+    private func currentLandmarkIndex() -> Int {
+        guard let currentIndex = landmarkStore.currentTrackingPhotoIndex else { return 0 }
+
+        return max(0, landmarkStore.capturedLandmarks.count - 1 - currentIndex)
     }
 }
 

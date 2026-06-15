@@ -28,7 +28,7 @@ struct HomeEmptyStateView: View {
                         .font(.titleBold)
                         .foregroundStyle(Color.surfaceSecondaryWhite)
                     
-                    Text("Save your parking spot and capture waypoints to find your way back your parked car")
+                    Text("Save your parking spot and capture landmarks to find your way back to your parked car")
                         .font(.subheadlineReg)
                         .opacity(0.5)
                         .multilineTextAlignment(.center)

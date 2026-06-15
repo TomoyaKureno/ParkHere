@@ -111,7 +111,8 @@ struct CameraPreview: UIViewRepresentable {
             indicatorLayer.add(fadeIn, forKey: "focusIndicatorFadeIn")
             indicatorLayer.add(scale, forKey: "focusIndicatorScale")
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self, weak indicatorLayer] in
+            Task { @MainActor [weak self, weak indicatorLayer] in
+                try? await Task.sleep(for: .milliseconds(800))
                 guard let self, let indicatorLayer, self.focusIndicatorLayer === indicatorLayer else { return }
 
                 CATransaction.begin()

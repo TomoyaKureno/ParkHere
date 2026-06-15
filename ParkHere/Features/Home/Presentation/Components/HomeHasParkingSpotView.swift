@@ -5,9 +5,12 @@
 //  Created by Marzandi Zahran Affandi Leta on 11/06/26.
 //
 
+import CoreLocation
 import SwiftUI
 
 struct HomeHasParkingSpotView: View {
+    let parkingSpotData: ParkingLandmark
+    
     var body: some View {
         VStack(alignment: .center, spacing: 34) {
             VStack(alignment: .center, spacing: 12) {
@@ -24,11 +27,14 @@ struct HomeHasParkingSpotView: View {
             .frame(width: 324)
             
             ZStack {
-                Image(.homeSavedImg)
+                Image(uiImage: parkingSpotData.image)
+                    .resizable()
+                    .scaledToFit()
                     .cornerRadius(24)
                 
                 VStack {
                     Spacer()
+                    
                     Rectangle()
                         .fill(LinearGradient(
                             stops: [
@@ -60,7 +66,12 @@ struct HomeHasParkingSpotView: View {
                         
                         Spacer()
                         
-                        Text("08.45")
+                        Text(
+                            parkingSpotData.capturedAt,
+                            format: .dateTime
+                                .hour(.twoDigits(amPM: .omitted))
+                                .minute(.twoDigits)
+                        )
                             .font(.footnoteBold)
                             .foregroundStyle(Color.surfaceSecondaryWhite)
                             .opacity(0.5)
@@ -73,14 +84,15 @@ struct HomeHasParkingSpotView: View {
                         .padding(.horizontal, 20)
                     
                     VStack(alignment: .leading) {
-                        Text("Mega Mall")
+                        Text(parkingSpotData.landmark.title)
                             .font(.bodyBold)
                             .foregroundStyle(Color.surfaceSecondaryWhite)
                         
-                        Text("Jl. Jend. Sudirman No.1, Batam Center, Batam")
+                        Text(parkingSpotData.landmark.subtitle)
                             .font(.footnoteReg)
                             .foregroundStyle(Color.surfaceSecondaryWhite)
                             .opacity(0.5)
+                            .lineLimit(2)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
@@ -93,10 +105,34 @@ struct HomeHasParkingSpotView: View {
 }
 
 #Preview("Preview Dark Mode") {
-    HomeHasParkingSpotView()
+    let parkingSpotData = ParkingLandmark(
+        image: UIImage(resource: .homeSavedImg),
+        location: CLLocation(
+            latitude: 1.1307,
+            longitude: 104.0534
+        ),
+        landmark: CurrentLandmark(
+            title: "Mega Mall",
+            subtitle: "Jl. Jend. Sudirman No.1, Batam Center, Batam"
+        )
+    )
+    
+    HomeHasParkingSpotView(parkingSpotData: parkingSpotData)
         .preferredColorScheme(.dark)
 }
 
 #Preview("Preview Light Mode") {
-    HomeHasParkingSpotView()
+    let parkingSpotData = ParkingLandmark(
+        image: UIImage(resource: .homeSavedImg),
+        location: CLLocation(
+            latitude: 1.1307,
+            longitude: 104.0534
+        ),
+        landmark: CurrentLandmark(
+            title: "Mega Mall",
+            subtitle: "Jl. Jend. Sudirman No.1, Batam Center, Batam"
+        )
+    )
+    
+    HomeHasParkingSpotView(parkingSpotData: parkingSpotData)
 }
