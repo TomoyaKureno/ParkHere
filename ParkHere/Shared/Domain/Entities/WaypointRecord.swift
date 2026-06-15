@@ -1,40 +1,53 @@
 //
-//  ParkingRecord.swift
+//  WaypointRecord.swift
 //  ParkHere
 //
-//  Created by Marzandi Zahran Affandi Leta on 12/06/26.
+//  Created by Codex on 16/06/26.
 //
 
 import Foundation
 import SwiftData
 
 @Model
-final class ParkingRecord {
+final class WaypointRecord {
+    var id: UUID
+    var orderIndex: Int
+    var imageFileName: String
     var latitude: Double?
     var longitude: Double?
     var horizontalAccuracy: Double?
-    
+    var landmarkTitle: String
+    var landmarkSubtitle: String
     var absoluteAltitude: Double?
     var pressureKPa: Double?
     var relativeAltitude: Double?
-    
-    var createdAt: Date
-    
-    init (
+    var capturedAt: Date
+
+    init(
+        id: UUID,
+        orderIndex: Int,
+        imageFileName: String,
         latitude: Double? = nil,
         longitude: Double? = nil,
         horizontalAccuracy: Double? = nil,
+        landmarkTitle: String,
+        landmarkSubtitle: String,
         absoluteAltitude: Double? = nil,
         pressureKPa: Double? = nil,
         relativeAltitude: Double? = nil,
-        createdAt: Date = Date()
+        capturedAt: Date
     ) {
+        self.id = id
+        self.orderIndex = orderIndex
+        self.imageFileName = imageFileName
         self.latitude = latitude
         self.longitude = longitude
         self.horizontalAccuracy = horizontalAccuracy
+        self.landmarkTitle = landmarkTitle
+        self.landmarkSubtitle = landmarkSubtitle
         self.absoluteAltitude = absoluteAltitude
         self.pressureKPa = pressureKPa
         self.relativeAltitude = relativeAltitude
-        self.createdAt = createdAt
+        self.capturedAt = capturedAt
     }
 }

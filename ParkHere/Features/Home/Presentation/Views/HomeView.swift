@@ -15,7 +15,6 @@ struct HomeView: View {
     let onSaveParkingSpot: () -> Void
     let onFindParkingSpot: () -> Void
 
-    @State private var isSavingParkingSpot = false
     @State private var showClearParkingSpotAlert = false
 
     var body: some View {
@@ -76,15 +75,9 @@ struct HomeView: View {
                             Button {
                                 saveParkingSpot()
                             } label: {
-                                if isSavingParkingSpot || locationManager.isRequestingLocation {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else {
-                                    Text("Capture Parking Spot")
-                                }
+                                Text("Capture Parking Spot")
                             }
                             .buttonStyle(.primaryStyle)
-                            .disabled(isSavingParkingSpot || locationManager.isRequestingLocation)
                         }
                     }
                 }
@@ -98,6 +91,7 @@ struct HomeView: View {
             Button("Replace", role: .confirm) {
                 store.clearParkingSpot()
                 showClearParkingSpotAlert = false
+                onSaveParkingSpot()
             }
             .tint(Color.brandPrimaryBlue)
             .keyboardShortcut(.defaultAction)
@@ -111,19 +105,8 @@ struct HomeView: View {
     // MARK: - Private Function
 
     private func saveParkingSpot() {
-        isSavingParkingSpot = true
-        locationManager.requestCurrentLocation { location in
-            guard let location else {
-                isSavingParkingSpot = false
-
-                return
-            }
-
-            store.saveParkingLocation(location)
-            store.clearWaypoints()
-            isSavingParkingSpot = false
-            onSaveParkingSpot()
-        }
+        store.clearWaypoints()
+        onSaveParkingSpot()
     }
 }
 

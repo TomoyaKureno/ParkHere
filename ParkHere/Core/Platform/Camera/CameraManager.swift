@@ -400,7 +400,10 @@ final class CameraManager: NSObject, ObservableObject {
         }
     }
 
-    func takePhoto(location: CLLocation? = nil) {
+    func takePhoto(
+        location: CLLocation? = nil,
+        completion: ((UIImage, CLLocation?) -> Void)? = nil
+    ) {
         guard !isLoading else { return }
 
         let selectedFlashMode = flashMode.avFlashMode
@@ -432,11 +435,15 @@ final class CameraManager: NSObject, ObservableObject {
                             return
                         }
 
-                        self.cameraState = .previewPhoto(
-                            id: UUID(),
-                            image: image,
-                            location: location
-                        )
+                        if let completion {
+                            completion(image, location)
+                        } else {
+                            self.cameraState = .previewPhoto(
+                                id: UUID(),
+                                image: image,
+                                location: location
+                            )
+                        }
                     case .failure(let message):
                         self.errorMessage = message.localizedDescription
                     }

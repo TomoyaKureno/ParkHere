@@ -11,7 +11,7 @@ import Foundation
 import UIKit
 
 struct ParkingWaypoint: Identifiable, Equatable {
-    let id = UUID()
+    let id: UUID
     let image: UIImage
     let latitude: Double?
     let longitude: Double?
@@ -26,13 +26,33 @@ struct ParkingWaypoint: Identifiable, Equatable {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
-    init(image: UIImage, location: CLLocation?, landmark: CurrentLandmark = .unavailable, altitude: AltitudeSample? = nil) {
+    var location: CLLocation? {
+        guard let coordinate else { return nil }
+
+        return CLLocation(
+            coordinate: coordinate,
+            altitude: altitude?.absoluteAltitude ?? 0,
+            horizontalAccuracy: horizontalAccuracy ?? -1,
+            verticalAccuracy: -1,
+            timestamp: capturedAt
+        )
+    }
+
+    init(
+        id: UUID = UUID(),
+        image: UIImage,
+        location: CLLocation?,
+        landmark: CurrentLandmark = .unavailable,
+        altitude: AltitudeSample? = nil,
+        capturedAt: Date = .now
+    ) {
+        self.id = id
         self.image = image
         self.latitude = location?.coordinate.latitude
         self.longitude = location?.coordinate.longitude
         self.horizontalAccuracy = location?.horizontalAccuracy
         self.landmark = landmark
-        self.capturedAt = .now
+        self.capturedAt = capturedAt
         self.altitude = altitude
     }
 
@@ -51,11 +71,7 @@ enum LandmarkSelectionState {
 final class WaypointStore: ObservableObject {
     @Published private(set) var capturedWaypoints: [ParkingWaypoint] = []
     @Published private(set) var retakeWaypointIDs: Set<UUID> = []
-    @Published private(set) var parkingLatitude: Double?
-    @Published private(set) var parkingLongitude: Double?
-    @Published private(set) var parkingHorizontalAccuracy: Double?
     @Published private(set) var trackingTargetIndex: Int?
-    @Published private(set) var parkingAltitudeAnchor: AltitudeSample?
     
     private var repository: ParkingRepository?
 
@@ -64,20 +80,15 @@ final class WaypointStore: ObservableObject {
     }
 
     var parkingCoordinate: CLLocationCoordinate2D? {
-        guard let parkingLatitude, let parkingLongitude else { return nil }
-
-        return CLLocationCoordinate2D(
-            latitude: parkingLatitude,
-            longitude: parkingLongitude
-        )
+        capturedWaypoints.first?.coordinate
     }
 
     var hasSavedParkingSpot: Bool {
-        parkingCoordinate != nil
+        !capturedWaypoints.isEmpty
     }
 
     var hasCompletedParkingCapture: Bool {
-        hasSavedParkingSpot && !capturedWaypoints.isEmpty
+        hasSavedParkingSpot
     }
 
     var currentTrackingWaypoint: ParkingWaypoint? {
@@ -91,7 +102,7 @@ final class WaypointStore: ObservableObject {
     
     var currentTrackingAltitudeAnchor: AltitudeSample? {
         if isTrackingParkingSpot {
-            return parkingAltitudeAnchor ?? capturedWaypoints.first?.altitude
+            return capturedWaypoints.first?.altitude
         }
 
         return currentTrackingWaypoint?.altitude
@@ -107,7 +118,7 @@ final class WaypointStore: ObservableObject {
 
     var currentTrackingHorizontalAccuracy: Double? {
         if isTrackingParkingSpot {
-            return parkingHorizontalAccuracy
+            return capturedWaypoints.first?.horizontalAccuracy
         }
 
         return currentTrackingWaypoint?.horizontalAccuracy
@@ -161,40 +172,37 @@ final class WaypointStore: ObservableObject {
     }
     
     func restoreFromPresistence() {
-        guard let record = repository?.loadActive() else { return }
-        parkingLatitude = record.latitude
-        parkingLongitude = record.longitude
-        parkingHorizontalAccuracy = record.horizontalAccuracy
-        
-        if record.absoluteAltitude != nil || record.pressureKPa != nil {
-            parkingAltitudeAnchor = AltitudeSample(
-                absoluteAltitude: record.absoluteAltitude,
-                pressureKPa: record.pressureKPa,
-                relativeAltitude: record.relativeAltitude,
-                capturedAt: record.createdAt
-            )
-        }
+        capturedWaypoints = repository?.loadWaypoints() ?? []
     }
 
-    func saveParkingLocation(_ location: CLLocation?, altitude: AltitudeSample? = nil) {
-        parkingLatitude = location?.coordinate.latitude
-        parkingLongitude = location?.coordinate.longitude
-        parkingHorizontalAccuracy = location?.horizontalAccuracy
-        parkingAltitudeAnchor = altitude
-        
-        repository?.save(
-            coordinate: location?.coordinate,
-            horizontalAccuracy: location?.horizontalAccuracy,
+    @discardableResult
+    func addWaypoint(
+        _ image: UIImage,
+        location: CLLocation?,
+        landmark: CurrentLandmark = .unavailable,
+        altitude: AltitudeSample? = nil
+    ) -> UUID {
+        let waypoint = ParkingWaypoint(
+            image: image,
+            location: location,
+            landmark: landmark,
             altitude: altitude
         )
+        capturedWaypoints.append(waypoint)
+        persistWaypoints()
+
+        return waypoint.id
     }
 
-    func addWaypoint(_ image: UIImage, location: CLLocation?, landmark: CurrentLandmark = .unavailable, altitude: AltitudeSample? = nil) {
-        capturedWaypoints.append(ParkingWaypoint(image: image, location: location, landmark: landmark, altitude: altitude))
-    }
-
-    func replaceWaypoint(at index: Int, image: UIImage, location: CLLocation?, landmark: CurrentLandmark = .unavailable, altitude: AltitudeSample? = nil) {
-        guard capturedWaypoints.indices.contains(index) else { return }
+    @discardableResult
+    func replaceWaypoint(
+        at index: Int,
+        image: UIImage,
+        location: CLLocation?,
+        landmark: CurrentLandmark = .unavailable,
+        altitude: AltitudeSample? = nil
+    ) -> UUID? {
+        guard capturedWaypoints.indices.contains(index) else { return nil }
 
         let previousWaypoint = capturedWaypoints[index]
         var updatedWaypoints = capturedWaypoints
@@ -209,6 +217,26 @@ final class WaypointStore: ObservableObject {
         var updatedRetakeIDs = retakeWaypointIDs
         updatedRetakeIDs.remove(previousWaypoint.id)
         retakeWaypointIDs = updatedRetakeIDs
+        persistWaypoints()
+
+        return updatedWaypoints[index].id
+    }
+
+    func updateWaypointLandmark(id: UUID, landmark: CurrentLandmark) {
+        guard let index = capturedWaypoints.firstIndex(where: { $0.id == id }) else { return }
+
+        let waypoint = capturedWaypoints[index]
+        var updatedWaypoints = capturedWaypoints
+        updatedWaypoints[index] = ParkingWaypoint(
+            id: waypoint.id,
+            image: waypoint.image,
+            location: waypoint.location,
+            landmark: landmark,
+            altitude: waypoint.altitude,
+            capturedAt: waypoint.capturedAt
+        )
+        capturedWaypoints = updatedWaypoints
+        persistWaypoints()
     }
 
     func markWaypointForRetake(at index: Int) {
@@ -248,6 +276,7 @@ final class WaypointStore: ObservableObject {
 
         capturedWaypoints = updatedWaypoints
         retakeWaypointIDs = []
+        persistWaypoints()
     }
 
     func removeWaypoint(at index: Int) {
@@ -260,12 +289,14 @@ final class WaypointStore: ObservableObject {
         var updatedWaypoints = capturedWaypoints
         updatedWaypoints.remove(at: index)
         capturedWaypoints = updatedWaypoints
+        persistWaypoints()
     }
 
     func clearWaypoints() {
         capturedWaypoints.removeAll()
         retakeWaypointIDs.removeAll()
         trackingTargetIndex = nil
+        repository?.clearWaypoints()
     }
 
     func prepareTracking() {
@@ -351,19 +382,14 @@ final class WaypointStore: ObservableObject {
     private func trackingCoordinate(for index: Int) -> CLLocationCoordinate2D? {
         guard capturedWaypoints.indices.contains(index) else { return nil }
 
-        if index == capturedWaypoints.indices.first {
-            return parkingCoordinate ?? capturedWaypoints[index].coordinate
-        }
-
         return capturedWaypoints[index].coordinate
     }
 
     func clearParkingSpot() {
-        parkingLatitude = nil
-        parkingLongitude = nil
-        parkingHorizontalAccuracy = nil
-        parkingAltitudeAnchor = nil
-        repository?.clear()
         clearWaypoints()
+    }
+
+    private func persistWaypoints() {
+        repository?.saveWaypoints(capturedWaypoints)
     }
 }

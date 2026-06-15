@@ -263,11 +263,33 @@ struct TrackerView: View {
     }
 
     private var isInsideForwardInset: Bool {
-        directionDegree <= forwardInset || directionDegree >= 360 - forwardInset
+        angularDistance(from: directionDegree, to: 0) <= forwardAlignmentInset
+    }
+
+    private var forwardAlignmentInset: CGFloat {
+        forwardInset + targetRadiusBearingAllowance
+    }
+
+    private var targetRadiusBearingAllowance: CGFloat {
+        guard
+            let distance = locationManager.distance(to: store.currentTrackingCoordinate),
+            distance > 0
+        else { return 0 }
+
+        let arrivalRadius = locationManager.arrivalRadius(
+            targetAccuracy: store.currentTrackingHorizontalAccuracy
+        )
+
+        guard distance > arrivalRadius else { return 180 }
+
+        let radiusRatio = min(arrivalRadius / distance, 1)
+        let allowance = asin(radiusRatio) * 180 / .pi
+
+        return min(CGFloat(allowance), 60)
     }
 
     private var targetArrowDegree: CGFloat {
-        snappedForwardDegree(for: directionDegree, inset: forwardInset)
+        directionDegree
     }
 
     private var normalizedArrowDegree: CGFloat {
@@ -283,9 +305,11 @@ struct TrackerView: View {
             return isTrackingParkingSpot ? "Parking spot found" : "Landmark found"
         }
 
-        switch normalizedArrowDegree {
-        case 0...20, 340...360:
+        if angularDistance(from: normalizedArrowDegree, to: 0) <= forwardAlignmentInset {
             return "Walk straight to align the circles"
+        }
+
+        switch normalizedArrowDegree {
         case 20..<160:
             return "Turn and walk right to align the circles"
         case 160...200:
@@ -327,15 +351,15 @@ struct TrackerView: View {
     }
 
     private var arcVisibleDegree: CGFloat {
-        max(0, arcDegree - forwardInset * 2)
+        max(0, arcDegree - forwardAlignmentInset * 2)
     }
 
     private var arcStart: CGFloat {
-        forwardInset / 360
+        forwardAlignmentInset / 360
     }
 
     private var arcEnd: CGFloat {
-        (forwardInset + arcVisibleDegree) / 360
+        (forwardAlignmentInset + arcVisibleDegree) / 360
     }
 
     private var shouldHideArc: Bool {
@@ -368,6 +392,7 @@ struct TrackerView: View {
                 Circle()
                     .fill(.white)
                     .frame(width: 16, height: 16)
+                    .opacity(isInsideForwardInset ? 0 : 1)
 
                 compassArcWithArrow
             }
@@ -395,6 +420,7 @@ struct TrackerView: View {
             Circle()
                 .fill(.white)
                 .frame(width: 16, height: 16)
+                .opacity(isInsideForwardInset ? 0 : 1)
 
             compassArcWithArrow
         }
@@ -434,7 +460,6 @@ struct TrackerView: View {
         Circle()
             .fill(isInsideForwardInset ? .white : .gray)
             .frame(width: 16, height: 16)
-            .opacity(isInsideForwardInset ? 0 : 1)
     }
 
     private var waypointImage: Image {
@@ -520,18 +545,6 @@ struct TrackerView: View {
         }
     }
 
-    private func snappedForwardDegree(for degree: CGFloat, inset: CGFloat) -> CGFloat {
-        if degree >= 360 - inset {
-            return 360
-        }
-
-        if degree <= inset {
-            return 0
-        }
-
-        return degree
-    }
-
     private func updateDisplayedArrowDegree(to targetDegree: CGFloat, animated: Bool = true) {
         let continuousTarget = closestContinuousDegree(
             from: displayedArrowDegree,
@@ -573,6 +586,14 @@ struct TrackerView: View {
         let normalized = degree.truncatingRemainder(dividingBy: 360)
 
         return normalized >= 0 ? normalized : normalized + 360
+    }
+
+    private func angularDistance(from sourceDegree: CGFloat, to targetDegree: CGFloat) -> CGFloat {
+        let source = normalizedDegree(sourceDegree)
+        let target = normalizedDegree(targetDegree)
+        let difference = abs(source - target)
+
+        return min(difference, 360 - difference)
     }
 
     private func safeDimension(_ value: CGFloat) -> CGFloat {

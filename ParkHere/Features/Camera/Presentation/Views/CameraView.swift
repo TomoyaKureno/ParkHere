@@ -42,10 +42,8 @@ struct CameraView: View {
 
             if altimeterManager.isMotionAccessDenied {
                 VStack { UnavailableView.motion }
-            } else if case .takePhoto = cameraManager.cameraState {
+            } else {
                 takePhotoView
-            } else if case .previewPhoto(_, let image, _) = cameraManager.cameraState {
-                capturedPhotoSavingView(image: image)
             }
 
             CameraOverlayView(isPresented: $showOverlay)
@@ -71,7 +69,6 @@ struct CameraView: View {
             case .takePhoto:
                 cameraManager.startSession()
             case .previewPhoto(_, let image, let location):
-                cameraManager.stopSession()
                 saveCapturedWaypoint(image: image, location: location)
             }
         }
@@ -103,15 +100,15 @@ struct CameraView: View {
         } message: {
             Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your landmarks before saving.")
         }
-        .alert("Discard the landmark photos?", isPresented: $showDiscardAlert) {
-            Button("Keep Photo", role: .cancel) {
+        .alert("Go back to Home?", isPresented: $showDiscardAlert) {
+            Button("Stay", role: .cancel) {
                 showDiscardAlert = false
             }
-            Button("Discard", role: .destructive) {
+            Button("Go Back", role: .destructive) {
                 cancelCapture()
             }
         } message: {
-            Text("Any landmark photos you've captured will be lost if you leave now.")
+            Text("All captured parking spot and landmark photos will be deleted.")
         }
         .alert("Great, you have taken your first photo!", isPresented: $showFirstPhotoAlert) {
             Button("Got it!", role: .cancel) {
@@ -295,13 +292,15 @@ struct CameraView: View {
     }
 
     private var captureButton: some View {
-        let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation
+        let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation || isSavingPreviewWaypoint
 
         return Button {
             locationManager.requestCurrentLocation { location in
                 guard let location else { return }
 
-                cameraManager.takePhoto(location: location)
+                cameraManager.takePhoto(location: location) { image, location in
+                    saveCapturedWaypoint(image: image, location: location)
+                }
             }
         } label: {
             ZStack {
@@ -386,56 +385,46 @@ struct CameraView: View {
         )
     }
 
-    private func capturedPhotoSavingView(image: UIImage) -> some View {
-        GeometryReader { proxy in
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .clipped()
-                .ignoresSafeArea()
-                .overlay {
-                    ProgressView()
-                        .tint(.white)
-                        .scaleEffect(1.2)
-                }
-        }
-        .ignoresSafeArea()
-    }
-
     private func saveCapturedWaypoint(image: UIImage, location: CLLocation?) {
         guard !isSavingPreviewWaypoint else { return }
 
         isSavingPreviewWaypoint = true
+        let altitude = altimeterManager.currentSample()
+        let waypointID: UUID?
+
+        if let retakeIndex {
+            waypointID = store.replaceWaypoint(
+                at: retakeIndex,
+                image: image,
+                location: location,
+                landmark: .loading,
+                altitude: altitude
+            )
+            isSavingPreviewWaypoint = false
+            finishCapture()
+        } else {
+            waypointID = store.addWaypoint(
+                image,
+                location: location,
+                landmark: .loading,
+                altitude: altitude
+            )
+            cameraManager.cameraState = .takePhoto
+            isSavingPreviewWaypoint = false
+
+            if !hasSeenFirstPhotoAlert {
+                showFirstPhotoAlert = true
+            }
+        }
+
+        guard let waypointID else { return }
+
+        let resolver = landmarkResolver
+        let waypointStore = store
 
         Task { @MainActor in
-            let altitude = altimeterManager.currentSample()
-            let landmark = await landmarkResolver.landmark(near: location)
-
-            if let retakeIndex {
-                store.replaceWaypoint(
-                    at: retakeIndex,
-                    image: image,
-                    location: location,
-                    landmark: landmark,
-                    altitude: altitude
-                )
-                finishCapture()
-            } else {
-                store.addWaypoint(
-                    image,
-                    location: location,
-                    landmark: landmark,
-                    altitude: altitude
-                )
-                cameraManager.cameraState = .takePhoto
-
-                if !hasSeenFirstPhotoAlert {
-                    showFirstPhotoAlert = true
-                }
-            }
-
-            isSavingPreviewWaypoint = false
+            let landmark = await resolver.landmark(near: location)
+            waypointStore.updateWaypointLandmark(id: waypointID, landmark: landmark)
         }
     }
 
