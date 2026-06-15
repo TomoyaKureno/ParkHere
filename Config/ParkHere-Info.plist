@@ -22,6 +22,8 @@
 	<string>ParkHere needs camera access to let you take waypoint photos that help guide you back to your parked vehicle.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ParkHere needs access to your location to determine your current position, save parking waypoints, and guide you back to your parked vehicle.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>ParkHere needs access to your Motion Altimeter to determine your current elevation, your Landmark elevation, and your Parking Spot elevation.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -29,6 +31,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
