@@ -15,7 +15,7 @@ struct UnavailableView: View {
     init(
         systemImage: String = "location.slash.fill",
         title: String = "Location Access is Off",
-        subtitle: String = "Turn on your location services to save your parking spot and capture waypoints"
+        subtitle: String = "Turn on your location services to save your parking spot."
     ) {
         self.systemImage = systemImage
         self.title = title

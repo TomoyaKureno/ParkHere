@@ -22,6 +22,8 @@ struct CameraView: View {
     @State private var isWaypointSheetPresented = false
     @State private var showDoneAlert = false
     @State private var didFinishCapture = false
+    @State private var showOverlay = true
+    @State private var overlayIndex: Int = 0
 
     var body: some View {
         ZStack {
@@ -35,35 +37,54 @@ struct CameraView: View {
                     cameraContent
 
                     VStack {
-                        HStack(alignment: .top, spacing: 8) {
-                            HStack(alignment: .top, spacing: 16) {
+                        VStack(spacing: 12) {
+                            HStack(alignment: .top, spacing: 8) {
+                                HStack(alignment: .top, spacing: 16) {
+                                    Button {
+                                        cancelCapture()
+                                    } label: {
+                                        Image(systemName: AppIcon.chevronLeft)
+                                            .font(.title3.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                            .frame(width: 52, height: 52)
+                                    }
+                                    .glassEffect(.regular, in: Circle())
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Capture Landmark")
+                                            .font(.title3Bold)
+
+                                        Text("Capture multiple landmarks to help guide you back to your parking spot")
+                                            .font(.subheadlineReg)
+                                    }
+                                    .foregroundStyle(.white)
+                                }
+
+                                Spacer(minLength: 0)
+
                                 Button {
-                                    cancelCapture()
+                                    overlayIndex = 0
+                                    withAnimation {
+                                        showOverlay = true
+                                    }
                                 } label: {
-                                    Image(systemName: AppIcon.chevronLeft)
+                                    Image(systemName: AppIcon.questionMarkCircle)
                                         .font(.title3.weight(.semibold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(Color.brandPrimaryBlue)
                                         .frame(width: 52, height: 52)
                                 }
                                 .glassEffect(.regular, in: Circle())
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Capture Waypoint")
-                                        .font(.title3Bold)
-
-                                    Text("Capture multiple landmarks to help guide you back to your parking spot")
-                                        .font(.subheadlineReg)
-                                }
-                                .foregroundStyle(.white)
                             }
+                            .padding([.top, .horizontal], 16)
 
-                            Spacer(minLength: 0)
-
-                            Image(systemName: AppIcon.mapPin)
-                                .font(.titleBold)
-                                .foregroundStyle(.blue)
+                            Text(store.capturedWaypoints.isEmpty ? "Start by Capturing your Parking Spot" : "Capture Some Landmarks Along the Way")
+                                .font(.subheadlineReg)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Capsule())
                         }
-                        .padding([.top, .horizontal], 16)
                         .padding(.bottom, 40)
                         .frame(maxWidth: .infinity)
                         .background(
@@ -122,9 +143,10 @@ struct CameraView: View {
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
                                             .frame(width: 56, height: 56)
-                                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                                            .clipShape(Circle())
                                     } else {
-                                        Color.clear
+                                        Circle()
+                                            .fill(Color.white.opacity(0.16))
                                             .frame(width: 56, height: 56)
                                     }
                                 }
@@ -150,6 +172,11 @@ struct CameraView: View {
                                         if cameraManager.isLoading || locationManager.isRequestingLocation {
                                             ProgressView()
                                                 .tint(.black)
+                                        } else {
+                                            Text("\(store.capturedWaypoints.count)")
+                                                .font(.title2)
+                                                .bold()
+                                                .foregroundStyle(.black)
                                         }
                                     }
                                 }
@@ -164,13 +191,10 @@ struct CameraView: View {
                                 Button {
                                     showDoneAlert = true
                                 } label: {
-                                    Image(systemName: AppIcon.checkmark)
-                                        .bold()
-                                        .foregroundStyle(.white)
-                                        .frame(width: 56, height: 56)
-                                        .glassEffect(.regular)
+                                    Text("Save")
                                 }
-                                .disabled(store.capturedImages.isEmpty)
+                                .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
+                                .disabled(store.capturedWaypoints.isEmpty)
                             }
                             .padding(.horizontal, 24)
                         }
@@ -225,6 +249,7 @@ struct CameraView: View {
                     .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }
+            CameraOverlayView(isPresented: $showOverlay)
         }
         .onAppear {
             pinchStartZoom = cameraManager.zoomFactor
