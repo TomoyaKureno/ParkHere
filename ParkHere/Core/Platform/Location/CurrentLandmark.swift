@@ -7,16 +7,16 @@
 
 import Foundation
 
-struct CurrentLandmark: Equatable {
+struct CurrentLandmark: Equatable, Sendable {
     let title: String
     let subtitle: String
 
-    static let loading = CurrentLandmark(
+    nonisolated static let loading = CurrentLandmark(
         title: "Finding nearby landmark",
         subtitle: "Getting your current location"
     )
 
-    static let unavailable = CurrentLandmark(
+    nonisolated static let unavailable = CurrentLandmark(
         title: "Location unavailable",
         subtitle: "Turn on location access to find nearby landmarks"
     )

@@ -40,7 +40,6 @@ struct LandmarksView: View {
                                 isRetakeNeeded: store.isLandmarkRetakeNeeded(at: landmarkIndex),
                                 visualIndex: visualIndex,
                                 label: landmarkLabel(for: landmarkIndex),
-                                landmarkCount: orderedLandmarkIndices.count,
                                 currentLandmarkIndex: currentLandmarkIndex,
                                 onDelete: {
                                     deleteRequest = LandmarkDeleteRequest(
@@ -183,7 +182,6 @@ private struct LandmarkImageView: View {
     let isRetakeNeeded: Bool
     let visualIndex: Int
     let label: LandmarkBadgeInfo
-    let landmarkCount: Int
     let currentLandmarkIndex: Int
     let onDelete: () -> Void
     let onRetake: () -> Void
@@ -366,13 +364,6 @@ private struct LandmarkDetailSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private func sheetArrowButton(icon: String) -> some View {
-        Image(systemName: icon)
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(.white)
-            .frame(width: 48, height: 48)
-            .glassEffect(.regular, in: Circle())
-    }
 }
 
 private struct LandmarkDetail: Identifiable {

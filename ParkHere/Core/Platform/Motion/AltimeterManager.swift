@@ -14,16 +14,16 @@ final class AltimeterManager: ObservableObject {
     @Published private(set) var relativeAltitude: Double?
     @Published private(set) var absoluteAltitude: Double?
     @Published private(set) var pressureKPa: Double?
-    @Published private(set) var authoriztionStatus: CMAuthorizationStatus = CMAltimeter.authorizationStatus()
+    @Published private(set) var authorizationStatus: CMAuthorizationStatus = CMAltimeter.authorizationStatus()
     @Published private(set) var isAvailable: Bool = CMAltimeter.isRelativeAltitudeAvailable()
     
     private let altimeter = CMAltimeter()
     private let queue = OperationQueue()
     private var isRunning: Bool = false
     
-    var isMotionAccessGranted: Bool { authoriztionStatus == .authorized }
+    var isMotionAccessGranted: Bool { authorizationStatus == .authorized }
     var isMotionAccessDenied: Bool {
-        authoriztionStatus == .denied || authoriztionStatus == .restricted
+        authorizationStatus == .denied || authorizationStatus == .restricted
     }
     
     func start() {
@@ -42,7 +42,7 @@ final class AltimeterManager: ObservableObject {
             Task { @MainActor in
                 self?.relativeAltitude = relative
                 self?.pressureKPa = pressure
-                self?.authoriztionStatus = CMAltimeter.authorizationStatus()
+                self?.authorizationStatus = CMAltimeter.authorizationStatus()
             }
         }
         

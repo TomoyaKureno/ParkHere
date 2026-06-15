@@ -19,8 +19,6 @@ final class CameraManager: NSObject, ObservableObject {
     private var currentInput: AVCaptureDeviceInput?
     private var photoCaptureProcessor: PhotoCaptureProcessor?
 
-    @Published var cameraState: CameraState = .takePhoto
-    @Published var capturedImages: [UIImage] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published private(set) var cameraAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
@@ -400,10 +398,7 @@ final class CameraManager: NSObject, ObservableObject {
         }
     }
 
-    func takePhoto(
-        location: CLLocation? = nil,
-        completion: ((UIImage, CLLocation?) -> Void)? = nil
-    ) {
+    func takePhoto(location: CLLocation? = nil, completion: @escaping (UIImage, CLLocation?) -> Void) {
         guard !isLoading else { return }
 
         let selectedFlashMode = flashMode.avFlashMode
@@ -435,15 +430,7 @@ final class CameraManager: NSObject, ObservableObject {
                             return
                         }
 
-                        if let completion {
-                            completion(image, location)
-                        } else {
-                            self.cameraState = .previewPhoto(
-                                id: UUID(),
-                                image: image,
-                                location: location
-                            )
-                        }
+                        completion(image, location)
                     case .failure(let message):
                         self.errorMessage = message.localizedDescription
                     }
@@ -453,10 +440,6 @@ final class CameraManager: NSObject, ObservableObject {
             self.photoCaptureProcessor = processor
             self.photoOutput.capturePhoto(with: settings, delegate: processor)
         }
-    }
-
-    func saveImage(newImage: UIImage) {
-        capturedImages.append(newImage)
     }
 
     private func publishError(_ message: String) {

@@ -64,20 +64,10 @@ struct CameraView: View {
             guard !isPinching else { return }
             pinchStartZoom = newValue
         }
-        .onChange(of: cameraManager.cameraState) { _, newValue in
-            switch newValue {
-            case .takePhoto:
-                cameraManager.startSession()
-            case .previewPhoto(_, let image, let location):
-                saveCapturedLandmark(image: image, location: location)
-            }
-        }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
 
-            if case .takePhoto = cameraManager.cameraState {
-                cameraManager.startSession()
-            }
+            cameraManager.startSession()
         }
         .onDisappear {
             cameraManager.stopSession()
@@ -276,7 +266,7 @@ struct CameraView: View {
         Button {
             openLandmarkGallery()
         } label: {
-            if let lastImage = store.capturedImages.last {
+            if let lastImage = store.capturedLandmarks.last?.image {
                 Image(uiImage: lastImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -288,7 +278,7 @@ struct CameraView: View {
                     .frame(width: 56, height: 56)
             }
         }
-        .disabled(store.capturedImages.isEmpty || retakeIndex != nil)
+        .disabled(store.capturedLandmarks.isEmpty || retakeIndex != nil)
     }
 
     private var captureButton: some View {
@@ -333,7 +323,7 @@ struct CameraView: View {
             Text("Save")
         }
         .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
-        .disabled(store.capturedImages.isEmpty || !store.retakeLandmarkIDs.isEmpty || retakeIndex != nil)
+        .disabled(store.capturedLandmarks.isEmpty || !store.retakeLandmarkIDs.isEmpty || retakeIndex != nil)
     }
 
     private var topGradient: some View {
@@ -409,7 +399,6 @@ struct CameraView: View {
                 landmark: .loading,
                 altitude: altitude
             )
-            cameraManager.cameraState = .takePhoto
             isSavingPreviewLandmark = false
 
             if !hasSeenFirstPhotoAlert {
@@ -508,7 +497,7 @@ struct CameraView: View {
     }
 
     private func openLandmarkGallery() {
-        guard !store.capturedImages.isEmpty else { return }
+        guard !store.capturedLandmarks.isEmpty else { return }
 
         showDoneAlert = false
         isOpeningLandmarkGallery = true

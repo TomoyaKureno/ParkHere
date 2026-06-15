@@ -90,11 +90,10 @@ struct RootView: View {
                     }
                 }
             }
-            .environmentObject(appCoordinator) // Share navigation
             .task {
                 let repository = ParkingRepository(modelContext: modelContext)
                 landmarkStore.attach(repository: repository)
-                landmarkStore.restoreFromPresistence()
+                landmarkStore.restoreFromPersistence()
             }
         }
     }
@@ -102,7 +101,7 @@ struct RootView: View {
     private func currentLandmarkIndex() -> Int {
         guard let currentIndex = landmarkStore.currentTrackingPhotoIndex else { return 0 }
 
-        return max(0, landmarkStore.capturedImages.count - 1 - currentIndex)
+        return max(0, landmarkStore.capturedLandmarks.count - 1 - currentIndex)
     }
 }
 

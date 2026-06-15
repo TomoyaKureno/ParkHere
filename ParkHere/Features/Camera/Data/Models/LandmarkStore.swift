@@ -68,6 +68,7 @@ enum LandmarkSelectionState {
     case unavailable
 }
 
+@MainActor
 final class LandmarkStore: ObservableObject {
     @Published private(set) var capturedLandmarks: [ParkingLandmark] = []
     @Published private(set) var retakeLandmarkIDs: Set<UUID> = []
@@ -75,20 +76,8 @@ final class LandmarkStore: ObservableObject {
     
     private var repository: ParkingRepository?
 
-    var capturedImages: [UIImage] {
-        capturedLandmarks.map(\.image)
-    }
-
-    var parkingCoordinate: CLLocationCoordinate2D? {
-        capturedLandmarks.first?.coordinate
-    }
-
-    var hasSavedParkingSpot: Bool {
-        !capturedLandmarks.isEmpty
-    }
-
     var hasCompletedParkingCapture: Bool {
-        hasSavedParkingSpot
+        !capturedLandmarks.isEmpty
     }
 
     var currentTrackingLandmark: ParkingLandmark? {
@@ -110,7 +99,7 @@ final class LandmarkStore: ObservableObject {
 
     var currentTrackingCoordinate: CLLocationCoordinate2D? {
         if isTrackingParkingSpot {
-            return parkingCoordinate
+            return capturedLandmarks.first?.coordinate
         }
 
         return currentTrackingLandmark?.coordinate
@@ -155,12 +144,6 @@ final class LandmarkStore: ObservableObject {
         return "\(currentTrackingPhotoIndex + 1) of \(capturedLandmarks.count) points"
     }
 
-    var remainingLandmarkCount: Int {
-        guard let trackingTargetIndex else { return 0 }
-
-        return trackingTargetIndex + 1
-    }
-
     var isTrackingParkingSpot: Bool {
         guard let trackingTargetIndex else { return true }
 
@@ -171,7 +154,7 @@ final class LandmarkStore: ObservableObject {
         self.repository = repository
     }
     
-    func restoreFromPresistence() {
+    func restoreFromPersistence() {
         capturedLandmarks = repository?.loadLandmarks() ?? []
     }
 
@@ -182,16 +165,16 @@ final class LandmarkStore: ObservableObject {
         landmark: CurrentLandmark = .unavailable,
         altitude: AltitudeSample? = nil
     ) -> UUID {
-        let landmark = ParkingLandmark(
+        let capturedLandmark = ParkingLandmark(
             image: image,
             location: location,
             landmark: landmark,
             altitude: altitude
         )
-        capturedLandmarks.append(landmark)
+        capturedLandmarks.append(capturedLandmark)
         persistLandmarks()
 
-        return landmark.id
+        return capturedLandmark.id
     }
 
     @discardableResult
@@ -279,19 +262,6 @@ final class LandmarkStore: ObservableObject {
         persistLandmarks()
     }
 
-    func removeLandmark(at index: Int) {
-        guard capturedLandmarks.indices.contains(index) else { return }
-
-        var updatedRetakeIDs = retakeLandmarkIDs
-        updatedRetakeIDs.remove(capturedLandmarks[index].id)
-        retakeLandmarkIDs = updatedRetakeIDs
-
-        var updatedLandmarks = capturedLandmarks
-        updatedLandmarks.remove(at: index)
-        capturedLandmarks = updatedLandmarks
-        persistLandmarks()
-    }
-
     func clearLandmarks() {
         capturedLandmarks.removeAll()
         retakeLandmarkIDs.removeAll()
@@ -331,12 +301,6 @@ final class LandmarkStore: ObservableObject {
 
     func skipToParkingSpot() {
         trackingTargetIndex = capturedLandmarks.isEmpty ? nil : 0
-    }
-
-    func setTrackingTargetIndex(_ index: Int) {
-        guard capturedLandmarks.indices.contains(index) else { return }
-
-        trackingTargetIndex = index
     }
 
     func landmarkSelectionState(for index: Int) -> LandmarkSelectionState {

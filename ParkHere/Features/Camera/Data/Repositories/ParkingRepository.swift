@@ -79,10 +79,6 @@ final class ParkingRepository {
         try? modelContext.save()
     }
     
-    func clear() {
-        clearLandmarks()
-    }
-
     func clearLandmarks() {
         clearLandmarkRecords()
         deleteImageDirectory()

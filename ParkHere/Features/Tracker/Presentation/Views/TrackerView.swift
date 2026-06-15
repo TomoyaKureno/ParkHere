@@ -164,7 +164,7 @@ struct TrackerView: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        if true {
+                        if isTrackingParkingSpot {
                             foundItButton
                         }
                     }
@@ -366,24 +366,6 @@ struct TrackerView: View {
         arcVisibleDegree <= 0
     }
 
-    private var compassView: some View {
-        ZStack(alignment: .top) {
-            if isArrivalConfirmed {
-                arrivalCheckmarkView
-            } else {
-                compassNeedleView
-            }
-        }
-        .frame(width: 200, height: 200)
-        .animation(
-            .interpolatingSpring(
-                stiffness: 120,
-                damping: 12
-            ),
-            value: isArrivalConfirmed
-        )
-    }
-
     private var arrowLandmark: some View {
         ZStack(alignment: .top) {
             if isArrivalConfirmed {
@@ -413,17 +395,6 @@ struct TrackerView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .transition(.scale.combined(with: .opacity))
-    }
-
-    private var compassNeedleView: some View {
-        ZStack {
-            Circle()
-                .fill(.white)
-                .frame(width: 16, height: 16)
-                .opacity(isInsideForwardInset ? 0 : 1)
-
-            compassArcWithArrow
-        }
     }
 
     private var compassArcWithArrow: some View {
@@ -650,10 +621,11 @@ struct TrackerView: View {
 
         guard arrivalEnteredAt == nil else { return }
 
-        let enteredAt = Date()
+        let enteredAt = Date.now
         arrivalEnteredAt = enteredAt
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1))
             guard arrivalEnteredAt == enteredAt else { return }
 
             isArrivalConfirmed = true
@@ -683,7 +655,8 @@ struct TrackerView: View {
             let targetIndex = store.trackingTargetIndex
         else { return }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
             guard
                 self.isArrivalConfirmed,
                 self.store.trackingTargetIndex == targetIndex,

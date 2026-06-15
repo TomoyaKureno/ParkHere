@@ -16,7 +16,7 @@ struct LandmarkBadge: View {
             .fontWeight(.semibold)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
             .background(color)
             .clipShape(Capsule())
             .padding(8)

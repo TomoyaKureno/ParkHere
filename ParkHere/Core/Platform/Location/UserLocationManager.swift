@@ -189,31 +189,6 @@ final class UserLocationManager: NSObject, ObservableObject {
         return distance > targetExitRadius
     }
 
-    func directionInstruction(
-        for relativeDegree: CGFloat,
-        isFound: Bool,
-        isTrackingParkingSpot: Bool
-    ) -> String {
-        guard !isFound else {
-            return isTrackingParkingSpot ? "Parking spot found" : "Landmark found"
-        }
-
-        let degree = normalizedDegrees(Double(relativeDegree))
-
-        switch degree {
-        case 0...20, 340...360:
-            return "Go straight"
-        case 20..<160:
-            return "Turn right"
-        case 160...200:
-            return "Turn around"
-        case 200..<340:
-            return "Turn left"
-        default:
-            return "Go straight"
-        }
-    }
-
     private func updateAuthorizationStatus(_ status: CLAuthorizationStatus) {
         authorizationStatus = status
 
