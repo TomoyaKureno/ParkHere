@@ -14,15 +14,15 @@ import UIKit
 final class ParkingRepository {
     private let modelContext: ModelContext
     private let fileManager: FileManager
-    private let imageDirectoryName = "WaypointImages"
+    private let imageDirectoryName = "LandmarkImages"
     
     init(modelContext: ModelContext, fileManager: FileManager = .default) {
         self.modelContext = modelContext
         self.fileManager = fileManager
     }
 
-    func loadWaypoints() -> [ParkingWaypoint] {
-        let descriptor = FetchDescriptor<WaypointRecord>(
+    func loadLandmarks() -> [ParkingLandmark] {
+        let descriptor = FetchDescriptor<LandmarkRecord>(
             sortBy: [SortDescriptor(\.orderIndex)]
         )
 
@@ -38,7 +38,7 @@ final class ParkingRepository {
                 subtitle: record.landmarkSubtitle
             )
 
-            return ParkingWaypoint(
+            return ParkingLandmark(
                 id: record.id,
                 image: image,
                 location: location,
@@ -49,28 +49,28 @@ final class ParkingRepository {
         }
     }
 
-    func saveWaypoints(_ waypoints: [ParkingWaypoint]) {
-        clearWaypointRecords()
+    func saveLandmarks(_ landmarks: [ParkingLandmark]) {
+        clearLandmarkRecords()
 
-        let activeImageFileNames = Set(waypoints.map { imageFileName(for: $0.id) })
+        let activeImageFileNames = Set(landmarks.map { imageFileName(for: $0.id) })
 
-        for (index, waypoint) in waypoints.enumerated() {
-            let imageFileName = imageFileName(for: waypoint.id)
-            saveImage(waypoint.image, fileName: imageFileName)
+        for (index, landmark) in landmarks.enumerated() {
+            let imageFileName = imageFileName(for: landmark.id)
+            saveImage(landmark.image, fileName: imageFileName)
 
-            let record = WaypointRecord(
-                id: waypoint.id,
+            let record = LandmarkRecord(
+                id: landmark.id,
                 orderIndex: index,
                 imageFileName: imageFileName,
-                latitude: waypoint.latitude,
-                longitude: waypoint.longitude,
-                horizontalAccuracy: waypoint.horizontalAccuracy,
-                landmarkTitle: waypoint.landmark.title,
-                landmarkSubtitle: waypoint.landmark.subtitle,
-                absoluteAltitude: waypoint.altitude?.absoluteAltitude,
-                pressureKPa: waypoint.altitude?.pressureKPa,
-                relativeAltitude: waypoint.altitude?.relativeAltitude,
-                capturedAt: waypoint.capturedAt
+                latitude: landmark.latitude,
+                longitude: landmark.longitude,
+                horizontalAccuracy: landmark.horizontalAccuracy,
+                landmarkTitle: landmark.landmark.title,
+                landmarkSubtitle: landmark.landmark.subtitle,
+                absoluteAltitude: landmark.altitude?.absoluteAltitude,
+                pressureKPa: landmark.altitude?.pressureKPa,
+                relativeAltitude: landmark.altitude?.relativeAltitude,
+                capturedAt: landmark.capturedAt
             )
             modelContext.insert(record)
         }
@@ -80,24 +80,24 @@ final class ParkingRepository {
     }
     
     func clear() {
-        clearWaypoints()
+        clearLandmarks()
     }
 
-    func clearWaypoints() {
-        clearWaypointRecords()
+    func clearLandmarks() {
+        clearLandmarkRecords()
         deleteImageDirectory()
         try? modelContext.save()
     }
 
-    private func clearWaypointRecords() {
-        try? modelContext.delete(model: WaypointRecord.self)
+    private func clearLandmarkRecords() {
+        try? modelContext.delete(model: LandmarkRecord.self)
     }
 
     private func imageFileName(for id: UUID) -> String {
         "\(id.uuidString).jpg"
     }
 
-    private func makeLocation(from record: WaypointRecord) -> CLLocation? {
+    private func makeLocation(from record: LandmarkRecord) -> CLLocation? {
         guard let latitude = record.latitude, let longitude = record.longitude else { return nil }
 
         return CLLocation(
@@ -109,7 +109,7 @@ final class ParkingRepository {
         )
     }
 
-    private func makeAltitude(from record: WaypointRecord) -> AltitudeSample? {
+    private func makeAltitude(from record: LandmarkRecord) -> AltitudeSample? {
         guard record.absoluteAltitude != nil || record.pressureKPa != nil || record.relativeAltitude != nil else {
             return nil
         }
@@ -130,7 +130,7 @@ final class ParkingRepository {
             try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
             try imageData.write(to: directoryURL.appendingPathComponent(fileName), options: .atomic)
         } catch {
-            assertionFailure("Failed to save waypoint image: \(error)")
+            assertionFailure("Failed to save landmark image: \(error)")
         }
     }
 

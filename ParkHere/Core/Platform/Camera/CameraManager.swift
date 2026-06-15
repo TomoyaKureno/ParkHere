@@ -64,7 +64,7 @@ final class CameraManager: NSObject, ObservableObject {
                 guard granted else {
                     DispatchQueue.main.async {
                         self?.cameraAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
-                        self?.errorMessage = "Camera access is off. Enable it in Settings to capture waypoint photos."
+                        self?.errorMessage = "Camera access is off. Enable it in Settings to capture landmark photos."
                     }
 
                     return
@@ -78,7 +78,7 @@ final class CameraManager: NSObject, ObservableObject {
                 self?.configureSessionAsync(position: .back)
             }
         case .denied, .restricted:
-            errorMessage = "Camera access is off. Enable it in Settings to capture waypoint photos."
+            errorMessage = "Camera access is off. Enable it in Settings to capture landmark photos."
         @unknown default:
             errorMessage = "Unknown camera permission status."
         }

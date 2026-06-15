@@ -10,7 +10,7 @@ import CoreLocation
 import SwiftUI
 
 struct CameraView: View {
-    @ObservedObject var store: WaypointStore
+    @ObservedObject var store: LandmarkStore
     @ObservedObject var locationManager: UserLocationManager
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var altimeterManager: AltimeterManager
@@ -27,7 +27,7 @@ struct CameraView: View {
     @State private var isPinching = false
     @State private var showDoneAlert = false
     @State private var didFinishCapture = false
-    @State private var isSavingPreviewWaypoint = false
+    @State private var isSavingPreviewLandmark = false
     @State private var isOpeningLandmarkGallery = false
     @AppStorage("hasSeenCameraOverlay") private var hasSeenCameraOverlay = false
     @State private var showOverlay = false
@@ -69,7 +69,7 @@ struct CameraView: View {
             case .takePhoto:
                 cameraManager.startSession()
             case .previewPhoto(_, let image, let location):
-                saveCapturedWaypoint(image: image, location: location)
+                saveCapturedLandmark(image: image, location: location)
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -144,7 +144,7 @@ struct CameraView: View {
         HStack(alignment: .top, spacing: 8) {
             HStack(alignment: .top, spacing: 16) {
                 Button {
-                    if store.capturedWaypoints.isEmpty {
+                    if store.capturedLandmarks.isEmpty {
                         cancelCapture()
                     } else {
                         showDiscardAlert = true
@@ -192,9 +192,9 @@ struct CameraView: View {
             return "Retake Landmark"
         }
 
-        return store.capturedWaypoints.isEmpty
+        return store.capturedLandmarks.isEmpty
             ? "Capture Parking Spot"
-            : "Capture Landmark \(store.capturedWaypoints.count)"
+            : "Capture Landmark \(store.capturedLandmarks.count)"
     }
 
     private var cameraSubtitle: String {
@@ -202,7 +202,7 @@ struct CameraView: View {
             return "Retake this photo to keep your route landmarks complete."
         }
 
-        return store.capturedWaypoints.isEmpty
+        return store.capturedLandmarks.isEmpty
             ? "Start by capturing photo around your parking spot (car or unique object)"
             : "Capture multiple landmarks to help guide you back to your parking spot"
     }
@@ -292,14 +292,14 @@ struct CameraView: View {
     }
 
     private var captureButton: some View {
-        let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation || isSavingPreviewWaypoint
+        let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation || isSavingPreviewLandmark
 
         return Button {
             locationManager.requestCurrentLocation { location in
                 guard let location else { return }
 
                 cameraManager.takePhoto(location: location) { image, location in
-                    saveCapturedWaypoint(image: image, location: location)
+                    saveCapturedLandmark(image: image, location: location)
                 }
             }
         } label: {
@@ -312,7 +312,7 @@ struct CameraView: View {
                     ProgressView()
                         .tint(.black)
                 } else if retakeIndex == nil {
-                    Text("\(store.capturedWaypoints.count)")
+                    Text("\(store.capturedLandmarks.count)")
                         .font(.title2)
                         .bold()
                         .foregroundStyle(.black)
@@ -333,7 +333,7 @@ struct CameraView: View {
             Text("Save")
         }
         .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
-        .disabled(store.capturedImages.isEmpty || !store.retakeWaypointIDs.isEmpty || retakeIndex != nil)
+        .disabled(store.capturedImages.isEmpty || !store.retakeLandmarkIDs.isEmpty || retakeIndex != nil)
     }
 
     private var topGradient: some View {
@@ -385,46 +385,46 @@ struct CameraView: View {
         )
     }
 
-    private func saveCapturedWaypoint(image: UIImage, location: CLLocation?) {
-        guard !isSavingPreviewWaypoint else { return }
+    private func saveCapturedLandmark(image: UIImage, location: CLLocation?) {
+        guard !isSavingPreviewLandmark else { return }
 
-        isSavingPreviewWaypoint = true
+        isSavingPreviewLandmark = true
         let altitude = altimeterManager.currentSample()
-        let waypointID: UUID?
+        let landmarkID: UUID?
 
         if let retakeIndex {
-            waypointID = store.replaceWaypoint(
+            landmarkID = store.replaceLandmark(
                 at: retakeIndex,
                 image: image,
                 location: location,
                 landmark: .loading,
                 altitude: altitude
             )
-            isSavingPreviewWaypoint = false
+            isSavingPreviewLandmark = false
             finishCapture()
         } else {
-            waypointID = store.addWaypoint(
+            landmarkID = store.addLandmark(
                 image,
                 location: location,
                 landmark: .loading,
                 altitude: altitude
             )
             cameraManager.cameraState = .takePhoto
-            isSavingPreviewWaypoint = false
+            isSavingPreviewLandmark = false
 
             if !hasSeenFirstPhotoAlert {
                 showFirstPhotoAlert = true
             }
         }
 
-        guard let waypointID else { return }
+        guard let landmarkID else { return }
 
         let resolver = landmarkResolver
-        let waypointStore = store
+        let landmarkStore = store
 
         Task { @MainActor in
             let landmark = await resolver.landmark(near: location)
-            waypointStore.updateWaypointLandmark(id: waypointID, landmark: landmark)
+            landmarkStore.updateCapturedLandmark(id: landmarkID, landmark: landmark)
         }
     }
 

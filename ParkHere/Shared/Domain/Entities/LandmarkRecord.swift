@@ -1,5 +1,5 @@
 //
-//  WaypointRecord.swift
+//  LandmarkRecord.swift
 //  ParkHere
 //
 //  Created by Codex on 16/06/26.
@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class WaypointRecord {
+final class LandmarkRecord {
     var id: UUID
     var orderIndex: Int
     var imageFileName: String

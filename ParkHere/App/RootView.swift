@@ -10,7 +10,7 @@ import SwiftUI
 
 struct RootView: View {
     @StateObject private var appCoordinator = AppCoordinator()
-    @StateObject private var waypointStore = WaypointStore()
+    @StateObject private var landmarkStore = LandmarkStore()
     @StateObject private var locationManager = UserLocationManager()
     @StateObject private var altimeterManager = AltimeterManager()
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
@@ -37,13 +37,13 @@ struct RootView: View {
         } else {
             NavigationStack(path: $appCoordinator.path) {
                 HomeView(
-                    store: waypointStore,
+                    store: landmarkStore,
                     locationManager: locationManager,
                     onSaveParkingSpot: {
                         appCoordinator.push(.camera(retakeIndex: nil))
                     },
                     onFindParkingSpot: {
-                        waypointStore.prepareTracking()
+                        landmarkStore.prepareTracking()
                         appCoordinator.push(.tracker)
                     }
                 )
@@ -51,7 +51,7 @@ struct RootView: View {
                     switch route {
                     case .camera(let retakeIndex):
                         CameraView(
-                            store: waypointStore,
+                            store: landmarkStore,
                             locationManager: locationManager,
                             altimeterManager: altimeterManager,
                             retakeIndex: retakeIndex
@@ -65,7 +65,7 @@ struct RootView: View {
                             )
                         }
                     case .tracker:
-                        TrackerView(store: waypointStore, locationManager: locationManager, altimeterManager: altimeterManager) {
+                        TrackerView(store: landmarkStore, locationManager: locationManager, altimeterManager: altimeterManager) {
                             appCoordinator.popToRoot()
                         } onTapBack: {
                             appCoordinator.pop()
@@ -76,13 +76,13 @@ struct RootView: View {
                         }
                     case .landmark(let isGallery):
                         LandmarksView(
-                            store: waypointStore,
+                            store: landmarkStore,
                             isGallery: isGallery,
                             currentLandmarkIndex: currentLandmarkIndex()
                         ) {
                             appCoordinator.pop()
                         } onUseLandmark: { index in
-                            waypointStore.useLandmarkInstead(at: index)
+                            landmarkStore.useLandmarkInstead(at: index)
                             appCoordinator.pop()
                         } onRetakeLandmark: { index in
                             appCoordinator.push(.camera(retakeIndex: index))
@@ -93,16 +93,16 @@ struct RootView: View {
             .environmentObject(appCoordinator) // Share navigation
             .task {
                 let repository = ParkingRepository(modelContext: modelContext)
-                waypointStore.attach(repository: repository)
-                waypointStore.restoreFromPresistence()
+                landmarkStore.attach(repository: repository)
+                landmarkStore.restoreFromPresistence()
             }
         }
     }
 
     private func currentLandmarkIndex() -> Int {
-        guard let currentIndex = waypointStore.currentTrackingPhotoIndex else { return 0 }
+        guard let currentIndex = landmarkStore.currentTrackingPhotoIndex else { return 0 }
 
-        return max(0, waypointStore.capturedImages.count - 1 - currentIndex)
+        return max(0, landmarkStore.capturedImages.count - 1 - currentIndex)
     }
 }
 

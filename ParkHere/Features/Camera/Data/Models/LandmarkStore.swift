@@ -1,5 +1,5 @@
 //
-//  WaypointStore.swift
+//  LandmarkStore.swift
 //  ParkHere
 //
 //  Created by Kelly Angeline on 08/06/26.
@@ -10,7 +10,7 @@ import CoreLocation
 import Foundation
 import UIKit
 
-struct ParkingWaypoint: Identifiable, Equatable {
+struct ParkingLandmark: Identifiable, Equatable {
     let id: UUID
     let image: UIImage
     let latitude: Double?
@@ -56,7 +56,7 @@ struct ParkingWaypoint: Identifiable, Equatable {
         self.altitude = altitude
     }
 
-    static func == (lhs: ParkingWaypoint, rhs: ParkingWaypoint) -> Bool {
+    static func == (lhs: ParkingLandmark, rhs: ParkingLandmark) -> Bool {
         lhs.id == rhs.id
     }
 }
@@ -68,44 +68,44 @@ enum LandmarkSelectionState {
     case unavailable
 }
 
-final class WaypointStore: ObservableObject {
-    @Published private(set) var capturedWaypoints: [ParkingWaypoint] = []
-    @Published private(set) var retakeWaypointIDs: Set<UUID> = []
+final class LandmarkStore: ObservableObject {
+    @Published private(set) var capturedLandmarks: [ParkingLandmark] = []
+    @Published private(set) var retakeLandmarkIDs: Set<UUID> = []
     @Published private(set) var trackingTargetIndex: Int?
     
     private var repository: ParkingRepository?
 
     var capturedImages: [UIImage] {
-        capturedWaypoints.map(\.image)
+        capturedLandmarks.map(\.image)
     }
 
     var parkingCoordinate: CLLocationCoordinate2D? {
-        capturedWaypoints.first?.coordinate
+        capturedLandmarks.first?.coordinate
     }
 
     var hasSavedParkingSpot: Bool {
-        !capturedWaypoints.isEmpty
+        !capturedLandmarks.isEmpty
     }
 
     var hasCompletedParkingCapture: Bool {
         hasSavedParkingSpot
     }
 
-    var currentTrackingWaypoint: ParkingWaypoint? {
+    var currentTrackingLandmark: ParkingLandmark? {
         guard
             let trackingTargetIndex,
-            capturedWaypoints.indices.contains(trackingTargetIndex)
+            capturedLandmarks.indices.contains(trackingTargetIndex)
         else { return nil }
 
-        return capturedWaypoints[trackingTargetIndex]
+        return capturedLandmarks[trackingTargetIndex]
     }
     
     var currentTrackingAltitudeAnchor: AltitudeSample? {
         if isTrackingParkingSpot {
-            return capturedWaypoints.first?.altitude
+            return capturedLandmarks.first?.altitude
         }
 
-        return currentTrackingWaypoint?.altitude
+        return currentTrackingLandmark?.altitude
     }
 
     var currentTrackingCoordinate: CLLocationCoordinate2D? {
@@ -113,25 +113,25 @@ final class WaypointStore: ObservableObject {
             return parkingCoordinate
         }
 
-        return currentTrackingWaypoint?.coordinate
+        return currentTrackingLandmark?.coordinate
     }
 
     var currentTrackingHorizontalAccuracy: Double? {
         if isTrackingParkingSpot {
-            return capturedWaypoints.first?.horizontalAccuracy
+            return capturedLandmarks.first?.horizontalAccuracy
         }
 
-        return currentTrackingWaypoint?.horizontalAccuracy
+        return currentTrackingLandmark?.horizontalAccuracy
     }
 
     var currentTrackingImage: UIImage? {
-        return currentTrackingWaypoint?.image
+        return currentTrackingLandmark?.image
     }
 
     var currentTrackingPhotoIndex: Int? {
         guard
             let trackingTargetIndex,
-            capturedWaypoints.indices.contains(trackingTargetIndex)
+            capturedLandmarks.indices.contains(trackingTargetIndex)
         else { return nil }
 
         return trackingTargetIndex
@@ -149,13 +149,13 @@ final class WaypointStore: ObservableObject {
 
     var currentTrackingProgressText: String {
         guard let currentTrackingPhotoIndex else {
-            return "\(capturedWaypoints.count) points"
+            return "\(capturedLandmarks.count) points"
         }
 
-        return "\(currentTrackingPhotoIndex + 1) of \(capturedWaypoints.count) points"
+        return "\(currentTrackingPhotoIndex + 1) of \(capturedLandmarks.count) points"
     }
 
-    var remainingWaypointCount: Int {
+    var remainingLandmarkCount: Int {
         guard let trackingTargetIndex else { return 0 }
 
         return trackingTargetIndex + 1
@@ -172,135 +172,135 @@ final class WaypointStore: ObservableObject {
     }
     
     func restoreFromPresistence() {
-        capturedWaypoints = repository?.loadWaypoints() ?? []
+        capturedLandmarks = repository?.loadLandmarks() ?? []
     }
 
     @discardableResult
-    func addWaypoint(
+    func addLandmark(
         _ image: UIImage,
         location: CLLocation?,
         landmark: CurrentLandmark = .unavailable,
         altitude: AltitudeSample? = nil
     ) -> UUID {
-        let waypoint = ParkingWaypoint(
+        let landmark = ParkingLandmark(
             image: image,
             location: location,
             landmark: landmark,
             altitude: altitude
         )
-        capturedWaypoints.append(waypoint)
-        persistWaypoints()
+        capturedLandmarks.append(landmark)
+        persistLandmarks()
 
-        return waypoint.id
+        return landmark.id
     }
 
     @discardableResult
-    func replaceWaypoint(
+    func replaceLandmark(
         at index: Int,
         image: UIImage,
         location: CLLocation?,
         landmark: CurrentLandmark = .unavailable,
         altitude: AltitudeSample? = nil
     ) -> UUID? {
-        guard capturedWaypoints.indices.contains(index) else { return nil }
+        guard capturedLandmarks.indices.contains(index) else { return nil }
 
-        let previousWaypoint = capturedWaypoints[index]
-        var updatedWaypoints = capturedWaypoints
-        updatedWaypoints[index] = ParkingWaypoint(
+        let previousLandmark = capturedLandmarks[index]
+        var updatedLandmarks = capturedLandmarks
+        updatedLandmarks[index] = ParkingLandmark(
             image: image,
             location: location,
             landmark: landmark,
             altitude: altitude
         )
-        capturedWaypoints = updatedWaypoints
+        capturedLandmarks = updatedLandmarks
 
-        var updatedRetakeIDs = retakeWaypointIDs
-        updatedRetakeIDs.remove(previousWaypoint.id)
-        retakeWaypointIDs = updatedRetakeIDs
-        persistWaypoints()
+        var updatedRetakeIDs = retakeLandmarkIDs
+        updatedRetakeIDs.remove(previousLandmark.id)
+        retakeLandmarkIDs = updatedRetakeIDs
+        persistLandmarks()
 
-        return updatedWaypoints[index].id
+        return updatedLandmarks[index].id
     }
 
-    func updateWaypointLandmark(id: UUID, landmark: CurrentLandmark) {
-        guard let index = capturedWaypoints.firstIndex(where: { $0.id == id }) else { return }
+    func updateCapturedLandmark(id: UUID, landmark: CurrentLandmark) {
+        guard let index = capturedLandmarks.firstIndex(where: { $0.id == id }) else { return }
 
-        let waypoint = capturedWaypoints[index]
-        var updatedWaypoints = capturedWaypoints
-        updatedWaypoints[index] = ParkingWaypoint(
-            id: waypoint.id,
-            image: waypoint.image,
-            location: waypoint.location,
+        let capturedLandmark = capturedLandmarks[index]
+        var updatedLandmarks = capturedLandmarks
+        updatedLandmarks[index] = ParkingLandmark(
+            id: capturedLandmark.id,
+            image: capturedLandmark.image,
+            location: capturedLandmark.location,
             landmark: landmark,
-            altitude: waypoint.altitude,
-            capturedAt: waypoint.capturedAt
+            altitude: capturedLandmark.altitude,
+            capturedAt: capturedLandmark.capturedAt
         )
-        capturedWaypoints = updatedWaypoints
-        persistWaypoints()
+        capturedLandmarks = updatedLandmarks
+        persistLandmarks()
     }
 
-    func markWaypointForRetake(at index: Int) {
-        guard capturedWaypoints.indices.contains(index) else { return }
+    func markLandmarkForRetake(at index: Int) {
+        guard capturedLandmarks.indices.contains(index) else { return }
 
-        var updatedRetakeIDs = retakeWaypointIDs
-        updatedRetakeIDs.insert(capturedWaypoints[index].id)
-        retakeWaypointIDs = updatedRetakeIDs
+        var updatedRetakeIDs = retakeLandmarkIDs
+        updatedRetakeIDs.insert(capturedLandmarks[index].id)
+        retakeLandmarkIDs = updatedRetakeIDs
     }
 
-    func isWaypointRetakeNeeded(at index: Int) -> Bool {
-        guard capturedWaypoints.indices.contains(index) else { return false }
+    func isLandmarkRetakeNeeded(at index: Int) -> Bool {
+        guard capturedLandmarks.indices.contains(index) else { return false }
 
-        return retakeWaypointIDs.contains(capturedWaypoints[index].id)
+        return retakeLandmarkIDs.contains(capturedLandmarks[index].id)
     }
 
-    func removeRetakeWaypoints() {
-        guard !retakeWaypointIDs.isEmpty else { return }
+    func removeRetakeLandmarks() {
+        guard !retakeLandmarkIDs.isEmpty else { return }
 
-        let oldWaypoints = capturedWaypoints
-        let removedIDs = retakeWaypointIDs
-        let updatedWaypoints = oldWaypoints.filter { waypoint in
-            !removedIDs.contains(waypoint.id)
+        let oldLandmarks = capturedLandmarks
+        let removedIDs = retakeLandmarkIDs
+        let updatedLandmarks = oldLandmarks.filter { landmark in
+            !removedIDs.contains(landmark.id)
         }
 
         if
             let trackingTargetIndex,
-            oldWaypoints.indices.contains(trackingTargetIndex)
+            oldLandmarks.indices.contains(trackingTargetIndex)
         {
-            let targetID = oldWaypoints[trackingTargetIndex].id
-            self.trackingTargetIndex = updatedWaypoints.firstIndex { waypoint in
-                waypoint.id == targetID
+            let targetID = oldLandmarks[trackingTargetIndex].id
+            self.trackingTargetIndex = updatedLandmarks.firstIndex { landmark in
+                landmark.id == targetID
             }
         } else if trackingTargetIndex != nil {
             trackingTargetIndex = nil
         }
 
-        capturedWaypoints = updatedWaypoints
-        retakeWaypointIDs = []
-        persistWaypoints()
+        capturedLandmarks = updatedLandmarks
+        retakeLandmarkIDs = []
+        persistLandmarks()
     }
 
-    func removeWaypoint(at index: Int) {
-        guard capturedWaypoints.indices.contains(index) else { return }
+    func removeLandmark(at index: Int) {
+        guard capturedLandmarks.indices.contains(index) else { return }
 
-        var updatedRetakeIDs = retakeWaypointIDs
-        updatedRetakeIDs.remove(capturedWaypoints[index].id)
-        retakeWaypointIDs = updatedRetakeIDs
+        var updatedRetakeIDs = retakeLandmarkIDs
+        updatedRetakeIDs.remove(capturedLandmarks[index].id)
+        retakeLandmarkIDs = updatedRetakeIDs
 
-        var updatedWaypoints = capturedWaypoints
-        updatedWaypoints.remove(at: index)
-        capturedWaypoints = updatedWaypoints
-        persistWaypoints()
+        var updatedLandmarks = capturedLandmarks
+        updatedLandmarks.remove(at: index)
+        capturedLandmarks = updatedLandmarks
+        persistLandmarks()
     }
 
-    func clearWaypoints() {
-        capturedWaypoints.removeAll()
-        retakeWaypointIDs.removeAll()
+    func clearLandmarks() {
+        capturedLandmarks.removeAll()
+        retakeLandmarkIDs.removeAll()
         trackingTargetIndex = nil
-        repository?.clearWaypoints()
+        repository?.clearLandmarks()
     }
 
     func prepareTracking() {
-        trackingTargetIndex = capturedWaypoints.indices.last
+        trackingTargetIndex = capturedLandmarks.indices.last
     }
 
     func prepareTracking(from location: CLLocation?) {
@@ -310,7 +310,7 @@ final class WaypointStore: ObservableObject {
         }
 
         trackingTargetIndex = nearestTrackingTargetIndex(from: location)
-            ?? capturedWaypoints.indices.last
+            ?? capturedLandmarks.indices.last
     }
 
     func advanceToNextTrackingTarget() -> Bool {
@@ -330,17 +330,17 @@ final class WaypointStore: ObservableObject {
     }
 
     func skipToParkingSpot() {
-        trackingTargetIndex = capturedWaypoints.isEmpty ? nil : 0
+        trackingTargetIndex = capturedLandmarks.isEmpty ? nil : 0
     }
 
     func setTrackingTargetIndex(_ index: Int) {
-        guard capturedWaypoints.indices.contains(index) else { return }
+        guard capturedLandmarks.indices.contains(index) else { return }
 
         trackingTargetIndex = index
     }
 
     func landmarkSelectionState(for index: Int) -> LandmarkSelectionState {
-        guard capturedWaypoints.indices.contains(index) else {
+        guard capturedLandmarks.indices.contains(index) else {
             return .unavailable
         }
 
@@ -362,7 +362,7 @@ final class WaypointStore: ObservableObject {
     }
 
     private func nearestTrackingTargetIndex(from location: CLLocation) -> Int? {
-        capturedWaypoints.indices
+        capturedLandmarks.indices
             .compactMap { index -> (index: Int, distance: CLLocationDistance)? in
                 guard let coordinate = trackingCoordinate(for: index) else { return nil }
 
@@ -380,16 +380,16 @@ final class WaypointStore: ObservableObject {
     }
 
     private func trackingCoordinate(for index: Int) -> CLLocationCoordinate2D? {
-        guard capturedWaypoints.indices.contains(index) else { return nil }
+        guard capturedLandmarks.indices.contains(index) else { return nil }
 
-        return capturedWaypoints[index].coordinate
+        return capturedLandmarks[index].coordinate
     }
 
     func clearParkingSpot() {
-        clearWaypoints()
+        clearLandmarks()
     }
 
-    private func persistWaypoints() {
-        repository?.saveWaypoints(capturedWaypoints)
+    private func persistLandmarks() {
+        repository?.saveLandmarks(capturedLandmarks)
     }
 }

@@ -9,7 +9,7 @@ import CoreLocation
 import SwiftUI
 
 struct HomeView: View {
-    @ObservedObject var store: WaypointStore
+    @ObservedObject var store: LandmarkStore
     @ObservedObject var locationManager: UserLocationManager
 
     let onSaveParkingSpot: () -> Void
@@ -27,7 +27,7 @@ struct HomeView: View {
                     UnavailableView(
                         systemImage: "location.slash.fill",
                         title: "Location Access is Off",
-                        subtitle: "Turn on your location services to save your parking spot and capture waypoints",
+                        subtitle: "Turn on your location services to save your parking spot and capture landmarks",
                         buttonTitle: "Open Settings"
                     ) {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -35,7 +35,7 @@ struct HomeView: View {
                         }
                     }
                 } else {
-                    if store.hasCompletedParkingCapture, let parkingSpot = store.capturedWaypoints.first {
+                    if store.hasCompletedParkingCapture, let parkingSpot = store.capturedLandmarks.first {
                         VStack {
                             HomeHasParkingSpotView(parkingSpotData: parkingSpot)
                         }
@@ -98,20 +98,20 @@ struct HomeView: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will delete your current parking spot and all associated waypoint photos.")
+            Text("This will delete your current parking spot and all associated landmark photos.")
         }
     }
 
     // MARK: - Private Function
 
     private func saveParkingSpot() {
-        store.clearWaypoints()
+        store.clearLandmarks()
         onSaveParkingSpot()
     }
 }
 
 #Preview("Preview Dark Mode") {
-    @Previewable @StateObject var store = WaypointStore()
+    @Previewable @StateObject var store = LandmarkStore()
     @Previewable @StateObject var locationManager = UserLocationManager()
 
     HomeView(
@@ -124,7 +124,7 @@ struct HomeView: View {
 }
 
 #Preview("Preview Light Mode") {
-    @Previewable @StateObject var store = WaypointStore()
+    @Previewable @StateObject var store = LandmarkStore()
     @Previewable @StateObject var locationManager = UserLocationManager()
 
     HomeView(

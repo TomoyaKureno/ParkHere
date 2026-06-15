@@ -195,22 +195,22 @@ final class UserLocationManager: NSObject, ObservableObject {
         isTrackingParkingSpot: Bool
     ) -> String {
         guard !isFound else {
-            return isTrackingParkingSpot ? "Parking spot ditemukan" : "Waypoint ditemukan"
+            return isTrackingParkingSpot ? "Parking spot found" : "Landmark found"
         }
 
         let degree = normalizedDegrees(Double(relativeDegree))
 
         switch degree {
         case 0...20, 340...360:
-            return "Lurus"
+            return "Go straight"
         case 20..<160:
-            return "Belok kanan"
+            return "Turn right"
         case 160...200:
-            return "Putar balik"
+            return "Turn around"
         case 200..<340:
-            return "Belok kiri"
+            return "Turn left"
         default:
-            return "Lurus"
+            return "Go straight"
         }
     }
 

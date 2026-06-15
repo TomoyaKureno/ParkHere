@@ -12,7 +12,7 @@ import SwiftUI
 struct ParkHereApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            WaypointRecord.self
+            LandmarkRecord.self
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         

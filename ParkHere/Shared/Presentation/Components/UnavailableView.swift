@@ -110,7 +110,7 @@ extension UnavailableView {
     UnavailableView(
         systemImage: "location.slash.fill",
         title: "Location Access is Off",
-        subtitle: "Turn on your location services to save your parking spot and capture waypoints",
+        subtitle: "Turn on your location services to save your parking spot and capture landmarks",
         buttonTitle: "Open Settings"
     )
         .preferredColorScheme(.dark)
@@ -120,7 +120,7 @@ extension UnavailableView {
     UnavailableView(
         systemImage: "location.slash.fill",
         title: "Location Access is Off",
-        subtitle: "Turn on your location services to save your parking spot and capture waypoints",
+        subtitle: "Turn on your location services to save your parking spot and capture landmarks",
         buttonTitle: "Open Settings"
     )
 }

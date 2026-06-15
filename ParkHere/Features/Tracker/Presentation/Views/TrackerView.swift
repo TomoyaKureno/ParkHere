@@ -9,7 +9,7 @@ import CoreLocation
 import SwiftUI
 
 struct TrackerView: View {
-    @ObservedObject var store: WaypointStore
+    @ObservedObject var store: LandmarkStore
     @ObservedObject var locationManager: UserLocationManager
     @ObservedObject var altimeterManager: AltimeterManager
 
@@ -69,7 +69,7 @@ struct TrackerView: View {
                 VStack {
                     Spacer()
 
-                    waypointImage
+                    landmarkImage
                         .resizable()
                         .scaledToFill()
                         .frame(
@@ -132,7 +132,7 @@ struct TrackerView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 16)
 
-                        arrowWaypoint
+                        arrowLandmark
                     }
                     .padding(.vertical, 16)
 
@@ -215,7 +215,7 @@ struct TrackerView: View {
         .onChange(of: isArrivalConfirmed) { _, newValue in
             guard hasPreparedTrackingLocation else { return }
 
-            advanceWaypointIfNeeded(isArrivalConfirmed: newValue)
+            advanceLandmarkIfNeeded(isArrivalConfirmed: newValue)
         }
         .onChange(of: directionDegree) { _, _ in
             guard hasPreparedTrackingLocation, !isInsideArrivalRadius else { return }
@@ -237,7 +237,7 @@ struct TrackerView: View {
                 onFoundIt()
             }
         } message: {
-            Text("This will clear your saved parking spot and waypoint photos")
+            Text("This will clear your saved parking spot and landmark photos")
         }
         .alert("Skip to parking spot?", isPresented: $showSkipToParkingSpotAlert) {
             Button("Cancel", role: .cancel) {}
@@ -246,7 +246,7 @@ struct TrackerView: View {
                 skipToParkingSpot()
             }
         } message: {
-            Text("This will skip the remaining waypoints and guide you directly to your saved parking spot.")
+            Text("This will skip the remaining landmarks and guide you directly to your saved parking spot.")
         }
     }
 
@@ -384,7 +384,7 @@ struct TrackerView: View {
         )
     }
 
-    private var arrowWaypoint: some View {
+    private var arrowLandmark: some View {
         ZStack(alignment: .top) {
             if isArrivalConfirmed {
                 arrivalCheckmarkView
@@ -462,12 +462,12 @@ struct TrackerView: View {
             .frame(width: 16, height: 16)
     }
 
-    private var waypointImage: Image {
+    private var landmarkImage: Image {
         if let currentTrackingImage = store.currentTrackingImage {
             return Image(uiImage: currentTrackingImage)
         }
 
-        return Image("imgWaypoint")
+        return Image("imgLandmark")
     }
 
     private var floorDeltaMeters: Double? {
@@ -676,7 +676,7 @@ struct TrackerView: View {
         )
     }
 
-    private func advanceWaypointIfNeeded(isArrivalConfirmed: Bool) {
+    private func advanceLandmarkIfNeeded(isArrivalConfirmed: Bool) {
         guard
             isArrivalConfirmed,
             !store.isTrackingParkingSpot,
@@ -703,7 +703,7 @@ struct TrackerView: View {
 }
 
 #Preview {
-    @Previewable @StateObject var store = WaypointStore()
+    @Previewable @StateObject var store = LandmarkStore()
     @Previewable @StateObject var locationManager = UserLocationManager()
     @Previewable @StateObject var altimeterManager = AltimeterManager()
 

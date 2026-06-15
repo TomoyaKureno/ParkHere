@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct LandmarksView: View {
-    @ObservedObject var store: WaypointStore
+    @ObservedObject var store: LandmarkStore
 
     let isGallery: Bool
     let currentLandmarkIndex: Int
@@ -19,8 +19,8 @@ struct LandmarksView: View {
     @State private var selectedDetail: LandmarkDetail?
     @State private var deleteRequest: LandmarkDeleteRequest?
 
-    private var orderedWaypointIndices: [Int] {
-        let indices = Array(store.capturedWaypoints.indices)
+    private var orderedLandmarkIndices: [Int] {
+        let indices = Array(store.capturedLandmarks.indices)
         return Array(indices.reversed())
     }
 
@@ -33,28 +33,28 @@ struct LandmarksView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(Array(orderedWaypointIndices.enumerated()), id: \.element) { visualIndex, waypointIndex in
+                        ForEach(Array(orderedLandmarkIndices.enumerated()), id: \.element) { visualIndex, landmarkIndex in
                             LandmarkImageView(
                                 isGallery: isGallery,
-                                image: store.capturedWaypoints[waypointIndex].image,
-                                isRetakeNeeded: store.isWaypointRetakeNeeded(at: waypointIndex),
+                                image: store.capturedLandmarks[landmarkIndex].image,
+                                isRetakeNeeded: store.isLandmarkRetakeNeeded(at: landmarkIndex),
                                 visualIndex: visualIndex,
-                                label: landmarkLabel(for: waypointIndex),
-                                landmarkCount: orderedWaypointIndices.count,
+                                label: landmarkLabel(for: landmarkIndex),
+                                landmarkCount: orderedLandmarkIndices.count,
                                 currentLandmarkIndex: currentLandmarkIndex,
                                 onDelete: {
                                     deleteRequest = LandmarkDeleteRequest(
-                                        waypointIndex: waypointIndex,
-                                        title: "Delete \(landmarkLabel(for: waypointIndex).text)"
+                                        landmarkIndex: landmarkIndex,
+                                        title: "Delete \(landmarkLabel(for: landmarkIndex).text)"
                                     )
                                 },
                                 onRetake: {
-                                    onRetakeLandmark(waypointIndex)
+                                    onRetakeLandmark(landmarkIndex)
                                 }
                             )
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                showDetail(for: waypointIndex, visualIndex: visualIndex)
+                                showDetail(for: landmarkIndex, visualIndex: visualIndex)
                             }
                         }
                     }
@@ -68,7 +68,7 @@ struct LandmarksView: View {
                 guard detail.selectionState.canUseLandmark else { return }
 
                 selectedDetail = nil
-                onUseLandmark(detail.waypointIndex)
+                onUseLandmark(detail.landmarkIndex)
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
@@ -94,7 +94,7 @@ struct LandmarksView: View {
             VStack {
                 Text("Your Landmarks")
                     .font(.headline)
-                Text("\(store.capturedWaypoints.count) Photos")
+                Text("\(store.capturedLandmarks.count) Photos")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.gray)
             }
@@ -124,53 +124,53 @@ struct LandmarksView: View {
         )
     }
 
-    private func showDetail(for waypointIndex: Int, visualIndex: Int) {
+    private func showDetail(for landmarkIndex: Int, visualIndex: Int) {
         guard !isGallery else { return }
-        guard !store.isWaypointRetakeNeeded(at: waypointIndex) else { return }
-        guard store.capturedWaypoints.indices.contains(waypointIndex) else { return }
-        let selectionState = store.landmarkSelectionState(for: waypointIndex)
+        guard !store.isLandmarkRetakeNeeded(at: landmarkIndex) else { return }
+        guard store.capturedLandmarks.indices.contains(landmarkIndex) else { return }
+        let selectionState = store.landmarkSelectionState(for: landmarkIndex)
         guard selectionState != .passed else { return }
 
-        let waypoint = store.capturedWaypoints[waypointIndex]
+        let landmark = store.capturedLandmarks[landmarkIndex]
         selectedDetail = LandmarkDetail(
-            waypointIndex: waypointIndex,
-            image: waypoint.image,
-            title: landmarkLabel(for: waypointIndex).text,
-            subtitle: waypoint.landmark.title,
-            progressText: "\(visualIndex + 1) of \(orderedWaypointIndices.count) points",
+            landmarkIndex: landmarkIndex,
+            image: landmark.image,
+            title: landmarkLabel(for: landmarkIndex).text,
+            subtitle: landmark.landmark.title,
+            progressText: "\(visualIndex + 1) of \(orderedLandmarkIndices.count) points",
             selectionState: selectionState
         )
     }
 
-    private func landmarkLabel(for waypointIndex: Int) -> LandmarkLabel {
+    private func landmarkLabel(for landmarkIndex: Int) -> LandmarkBadgeInfo {
         guard
-            let firstIndex = store.capturedWaypoints.indices.first,
-            let lastIndex = store.capturedWaypoints.indices.last
+            let firstIndex = store.capturedLandmarks.indices.first,
+            let lastIndex = store.capturedLandmarks.indices.last
         else {
-            return LandmarkLabel(text: "Landmark", color: .blue)
+            return LandmarkBadgeInfo(text: "Landmark", color: .blue)
         }
 
-        if waypointIndex == lastIndex {
-            return LandmarkLabel(text: "Final Spot", color: .green)
+        if landmarkIndex == lastIndex {
+            return LandmarkBadgeInfo(text: "Final Spot", color: .green)
         }
 
-        if waypointIndex == firstIndex {
-            return LandmarkLabel(text: "Parking Spot", color: .blue)
+        if landmarkIndex == firstIndex {
+            return LandmarkBadgeInfo(text: "Parking Spot", color: .blue)
         }
 
-        return LandmarkLabel(text: "Landmark \(waypointIndex)", color: .blue)
+        return LandmarkBadgeInfo(text: "Landmark \(landmarkIndex)", color: .blue)
     }
 
     private func confirmDelete() {
         guard let deleteRequest else { return }
 
-        store.markWaypointForRetake(at: deleteRequest.waypointIndex)
+        store.markLandmarkForRetake(at: deleteRequest.landmarkIndex)
         self.deleteRequest = nil
     }
 
     private func handleBack() {
         if isGallery {
-            store.removeRetakeWaypoints()
+            store.removeRetakeLandmarks()
         }
 
         onTapBack()
@@ -182,7 +182,7 @@ private struct LandmarkImageView: View {
     let image: UIImage
     let isRetakeNeeded: Bool
     let visualIndex: Int
-    let label: LandmarkLabel
+    let label: LandmarkBadgeInfo
     let landmarkCount: Int
     let currentLandmarkIndex: Int
     let onDelete: () -> Void
@@ -264,7 +264,7 @@ private struct LandmarkImageView: View {
                 .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(alignment: .topLeading) {
-                    WaypointLabel(
+                    LandmarkBadge(
                         text: label.text,
                         color: label.color
                     )
@@ -376,7 +376,7 @@ private struct LandmarkDetailSheet: View {
 }
 
 private struct LandmarkDetail: Identifiable {
-    let waypointIndex: Int
+    let landmarkIndex: Int
     let image: UIImage
     let title: String
     let subtitle: String
@@ -384,7 +384,7 @@ private struct LandmarkDetail: Identifiable {
     let selectionState: LandmarkSelectionState
 
     var id: Int {
-        waypointIndex
+        landmarkIndex
     }
 }
 
@@ -408,21 +408,21 @@ private extension LandmarkSelectionState {
 }
 
 private struct LandmarkDeleteRequest {
-    let waypointIndex: Int
+    let landmarkIndex: Int
     let title: String
 }
 
-private struct LandmarkLabel {
+private struct LandmarkBadgeInfo {
     let text: String
     let color: Color
 }
 
 #Preview {
-    let store = WaypointStore()
-    store.addWaypoint(UIImage(resource: .imgWaypoint), location: nil)
-    store.addWaypoint(UIImage(resource: .imgWaypoint), location: nil)
-    store.addWaypoint(UIImage(resource: .imgWaypoint), location: nil)
-    store.addWaypoint(UIImage(resource: .imgWaypoint), location: nil)
+    let store = LandmarkStore()
+    store.addLandmark(UIImage(resource: .imgLandmark), location: nil)
+    store.addLandmark(UIImage(resource: .imgLandmark), location: nil)
+    store.addLandmark(UIImage(resource: .imgLandmark), location: nil)
+    store.addLandmark(UIImage(resource: .imgLandmark), location: nil)
 
     return LandmarksView(
         store: store,

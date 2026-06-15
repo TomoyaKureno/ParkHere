@@ -9,7 +9,7 @@ import CoreLocation
 import SwiftUI
 
 struct HomeHasParkingSpotView: View {
-    let parkingSpotData: ParkingWaypoint
+    let parkingSpotData: ParkingLandmark
     
     var body: some View {
         VStack(alignment: .center, spacing: 34) {
@@ -105,7 +105,7 @@ struct HomeHasParkingSpotView: View {
 }
 
 #Preview("Preview Dark Mode") {
-    let parkingSpotData = ParkingWaypoint(
+    let parkingSpotData = ParkingLandmark(
         image: UIImage(resource: .homeSavedImg),
         location: CLLocation(
             latitude: 1.1307,
@@ -122,7 +122,7 @@ struct HomeHasParkingSpotView: View {
 }
 
 #Preview("Preview Light Mode") {
-    let parkingSpotData = ParkingWaypoint(
+    let parkingSpotData = ParkingLandmark(
         image: UIImage(resource: .homeSavedImg),
         location: CLLocation(
             latitude: 1.1307,
