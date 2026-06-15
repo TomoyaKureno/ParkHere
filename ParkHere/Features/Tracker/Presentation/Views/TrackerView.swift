@@ -50,9 +50,7 @@ struct TrackerView: View {
 
     private var trackerContent: some View {
         let directionDegree = locationManager.relativeBearing(to: store.currentTrackingCoordinate) ?? 0
-        let isInsideForwardEnterInset = isInsideForwardRange(directionDegree, inset: forwardEnterInset)
-        let isInsideForwardExitInset = isInsideForwardRange(directionDegree, inset: forwardExitInset)
-        let shouldLockForward = isForwardLocked ? isInsideForwardExitInset : isInsideForwardEnterInset
+//        let shouldLockForward = isForwardLocked ? isInsideForwardExitInset : isInsideForwardEnterInset
         let normalizedArrowDegree = normalizedDegree(displayedArrowDegree)
         let distanceText = locationManager.distanceText(to: store.currentTrackingCoordinate)
         let isInsideArrivalRadius = locationManager.isInsideArrivalRadius(
@@ -63,14 +61,14 @@ struct TrackerView: View {
             targetCoordinate: store.currentTrackingCoordinate
         )
         let isTrackingParkingSpot = store.isTrackingParkingSpot
-        let directionInstruction = locationManager.directionInstruction(
-            for: shouldLockForward ? 0 : normalizedArrowDegree,
-            isFound: isArrivalConfirmed,
-            isTrackingParkingSpot: isTrackingParkingSpot
-        )
+//        let directionInstruction = locationManager.directionInstruction(
+//            for: shouldLockForward ? 0 : normalizedArrowDegree,
+//            isFound: isArrivalConfirmed,
+//            isTrackingParkingSpot: isTrackingParkingSpot
+//        )
         let distanceUpdateKey = locationManager.distance(to: store.currentTrackingCoordinate) ?? .greatestFiniteMagnitude
 
-        ZStack {
+        return ZStack {
             Color.surfacePrimaryBlack
                 .ignoresSafeArea()
 
@@ -87,7 +85,7 @@ struct TrackerView: View {
             locationManager.setBackgroundUpdates(true)
             altimeterManager.start()
             updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
-            updateArrivalState(isInsideArrivalRadius: isInsideArrivalRadius)
+//            updateArrivalState(isInsideArrivalRadius: isInsideArrivalRadius)
         }
         .onDisappear {
             locationManager.setBackgroundUpdates(false)
@@ -101,7 +99,7 @@ struct TrackerView: View {
             displayedFloors = 0   // reset saat target waypoint berganti
         }
         .onChange(of: isInsideArrivalRadius) { _, newValue in
-            updateArrivalState(isInsideArrivalRadius: newValue)
+//            updateArrivalState(isInsideArrivalRadius: newValue)
 
             if !newValue {
                 updateDisplayedArrowDegree(to: targetArrowDegree)
