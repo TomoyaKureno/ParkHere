@@ -26,6 +26,8 @@ struct CameraView: View {
     @State private var showOverlay = false
     @State private var overlayIndex: Int = 0
     @State private var showDiscardAlert = false
+    @AppStorage("hasSeenFirstPhotoAlert") private var hasSeenFirstPhotoAlert = false
+    @State private var showFirstPhotoAlert = false
 
     var body: some View {
         ZStack {
@@ -233,6 +235,9 @@ struct CameraView: View {
                         Button {
                             store.addWaypoint(image, location: location, altitude: altimeterManager.currentSample())
                             cameraManager.cameraState = .takePhoto
+                            if !hasSeenFirstPhotoAlert {
+                                showFirstPhotoAlert = true
+                            }
                         } label: {
                             Image(systemName: AppIcon.checkmark)
                                 .bold()
@@ -305,6 +310,14 @@ struct CameraView: View {
             }
         } message: {
             Text("Any landmark photos you've captured will be lost if you leave now")
+        }
+        .alert("Great, you have taken your first photo!", isPresented: $showFirstPhotoAlert) {
+            Button("Got it!", role: .cancel) {
+                showFirstPhotoAlert = false
+                hasSeenFirstPhotoAlert = true
+            }
+        } message: {
+            Text("Add more pictures as you walk further.")
         }
         .sheet(isPresented: $isWaypointSheetPresented) {
             WaypointSheet(
