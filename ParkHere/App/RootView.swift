@@ -5,12 +5,12 @@
 //  Created by Fathariq Dimas on 06/06/26.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct RootView: View {
     @StateObject private var appCoordinator = AppCoordinator()
-    @StateObject private var waypointStore = WaypointStore() // nb: environment object is used when a view needs access to an object created somewhere above it
+    @StateObject private var waypointStore = WaypointStore()
     @StateObject private var locationManager = UserLocationManager()
     @StateObject private var altimeterManager = AltimeterManager()
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
@@ -27,7 +27,7 @@ struct RootView: View {
                     store: waypointStore,
                     locationManager: locationManager,
                     onSaveParkingSpot: {
-                        appCoordinator.push(.camera)
+                        appCoordinator.push(.camera(retakeIndex: nil))
                     },
                     onFindParkingSpot: {
                         waypointStore.prepareTracking()
@@ -36,18 +36,44 @@ struct RootView: View {
                 )
                 .navigationDestination(for: AppRoute.self) { route in
                     switch route {
-                    case .camera:
-                        CameraView(store: waypointStore, locationManager: locationManager, altimeterManager: altimeterManager) {
+                    case .camera(let retakeIndex):
+                        CameraView(
+                            store: waypointStore,
+                            locationManager: locationManager,
+                            altimeterManager: altimeterManager,
+                            retakeIndex: retakeIndex
+                        ) {
                             appCoordinator.pop()
                         } onPop: {
                             appCoordinator.pop()
+                        } onTapLandmarks: {
+                            appCoordinator.push(
+                                .landmark(isGallery: true)
+                            )
                         }
                     case .tracker:
                         TrackerView(store: waypointStore, locationManager: locationManager, altimeterManager: altimeterManager) {
                             appCoordinator.popToRoot()
+                        } onTapBack: {
+                            appCoordinator.pop()
+                        } onTapLandmarks: { isGallery in
+                            appCoordinator.push(
+                                .landmark(isGallery: isGallery)
+                            )
                         }
                     case .landmark(let isGallery):
-                        EmptyView()
+                        LandmarksView(
+                            store: waypointStore,
+                            isGallery: isGallery,
+                            currentLandmarkIndex: currentLandmarkIndex()
+                        ) {
+                            appCoordinator.pop()
+                        } onUseLandmark: { index in
+                            waypointStore.useLandmarkInstead(at: index)
+                            appCoordinator.pop()
+                        } onRetakeLandmark: { index in
+                            appCoordinator.push(.camera(retakeIndex: index))
+                        }
                     }
                 }
             }
@@ -58,6 +84,12 @@ struct RootView: View {
                 waypointStore.restoreFromPresistence()
             }
         }
+    }
+
+    private func currentLandmarkIndex() -> Int {
+        guard let currentIndex = waypointStore.currentTrackingPhotoIndex else { return 0 }
+
+        return max(0, waypointStore.capturedImages.count - 1 - currentIndex)
     }
 }
 

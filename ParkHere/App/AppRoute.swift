@@ -5,9 +5,8 @@
 //  Created by Fathariq Dimas on 05/06/26.
 //
 
-import Foundation
-
 enum AppRoute: Hashable {
-    case camera
+    case camera(retakeIndex: Int?)
     case tracker
+    case landmark(isGallery: Bool)
 }

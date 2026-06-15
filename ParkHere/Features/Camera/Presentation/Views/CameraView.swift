@@ -8,24 +8,28 @@
 import AVFoundation
 import CoreLocation
 import SwiftUI
-import UIKit
 
 struct CameraView: View {
     @ObservedObject var store: WaypointStore
     @ObservedObject var locationManager: UserLocationManager
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var altimeterManager: AltimeterManager
+    let retakeIndex: Int?
     
     let onDone: () -> Void
     let onPop: () -> Void
-    
+    let onTapLandmarks: () -> Void
+
+    private let landmarkResolver = CurrentLandmarkResolver()
+
     @StateObject private var cameraManager = CameraManager()
     @State private var pinchStartZoom: CGFloat = 1.0
     @State private var isPinching = false
-    @State private var isWaypointSheetPresented = false
     @State private var showDoneAlert = false
     @State private var didFinishCapture = false
-    
+    @State private var isSavingPreviewWaypoint = false
+    @State private var isOpeningLandmarkGallery = false
+
     var body: some View {
         ZStack {
             Color.black
@@ -34,71 +38,57 @@ struct CameraView: View {
             if altimeterManager.isMotionAccessDenied {
                 VStack { UnavailableView.motion }
             } else if case .takePhoto = cameraManager.cameraState {
-                ZStack {
-                    cameraContent
-                    
-                    takePhotoView
-                }
-                .onAppear {
-                    pinchStartZoom = cameraManager.zoomFactor
-                    cameraManager.startSession()
-                    locationManager.requestAccessAndStartUpdating()
-                    altimeterManager.start()
-                }
-                .onChange(of: cameraManager.zoomFactor) { _, newValue in
-                    guard !isPinching else { return }
-                    pinchStartZoom = newValue
-                }
-                .onChange(of: cameraManager.cameraState) { _, newValue in
-                    switch newValue {
-                    case .takePhoto:
-                        cameraManager.startSession()
-                    case .previewPhoto:
-                        cameraManager.stopSession()
-                    }
-                }
-                .onChange(of: scenePhase) { _, newPhase in
-                    guard newPhase == .active else { return }
-                        
-                    if case .takePhoto = cameraManager.cameraState {
-                        cameraManager.startSession()
-                    }
-                }
-                .onDisappear {
-                    cameraManager.stopSession()
-                        
-                    if !didFinishCapture {
-                        store.clearParkingSpot()
-                    }
-                }
-                .navigationBarBackButtonHidden(true)
-                .toolbar(.hidden, for: .navigationBar)
-                .alert("Ready to save?", isPresented: $showDoneAlert) {
-                    Button("Review Waypoints", role: .cancel) {
-                        showDoneAlert = false
-                        isWaypointSheetPresented = true
-                    }
-                        
-                    Button("Save & Finish", role: .none) {
-                        finishCapture()
-                    }
-                } message: {
-                    Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your waypoints before saving.")
-                }
-                .sheet(isPresented: $isWaypointSheetPresented) {
-                    WaypointSheet(
-                        onSaveParkingSpot: {
-                            isWaypointSheetPresented = false
-                            finishCapture()
-                        }
-                    )
-                    .environmentObject(store)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-                }
+                takePhotoView
             } else if case .previewPhoto(_, let image, let location) = cameraManager.cameraState {
                 previewPhotoView(image: image, location: location)
             }
+        }
+        .onAppear {
+            isOpeningLandmarkGallery = false
+            pinchStartZoom = cameraManager.zoomFactor
+            cameraManager.startSession()
+            locationManager.requestAccessAndStartUpdating()
+            altimeterManager.start()
+        }
+        .onChange(of: cameraManager.zoomFactor) { _, newValue in
+            guard !isPinching else { return }
+            pinchStartZoom = newValue
+        }
+        .onChange(of: cameraManager.cameraState) { _, newValue in
+            switch newValue {
+            case .takePhoto:
+                cameraManager.startSession()
+            case .previewPhoto:
+                cameraManager.stopSession()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+                
+            if case .takePhoto = cameraManager.cameraState {
+                cameraManager.startSession()
+            }
+        }
+        .onDisappear {
+            cameraManager.stopSession()
+            altimeterManager.stop()
+                
+            if !didFinishCapture && retakeIndex == nil && !isOpeningLandmarkGallery {
+                store.clearParkingSpot()
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .alert("Ready to save?", isPresented: $showDoneAlert) {
+            Button("Review Waypoints", role: .cancel) {
+                openLandmarkGallery()
+            }
+                
+            Button("Save & Finish", role: .none) {
+                finishCapture()
+            }
+        } message: {
+            Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your waypoints before saving.")
         }
     }
     
@@ -108,9 +98,9 @@ struct CameraView: View {
             
             VStack {
                 headerSection
-                
+
                 Spacer()
-                
+
                 bottomControlsSection
             }
             .ignoresSafeArea(edges: .bottom)
@@ -189,7 +179,7 @@ struct CameraView: View {
     
     private var thumbnailButton: some View {
         Button {
-            isWaypointSheetPresented = true
+            openLandmarkGallery()
         } label: {
             if let lastImage = store.capturedImages.last {
                 Image(uiImage: lastImage)
@@ -208,15 +198,13 @@ struct CameraView: View {
     private var captureButton: some View {
         let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation
         
-        return Button {
-            locationManager.requestCurrentLocation { location in
-                guard let location else { return }
-                
-                let altitude = altimeterManager.currentSample()
-                store.saveParkingLocation(location, altitude: altitude)
-                cameraManager.takePhoto(location: location)
-            }
-        } label: {
+            return Button {
+                locationManager.requestCurrentLocation { location in
+                    guard let location else { return }
+
+                    cameraManager.takePhoto(location: location)
+                }
+            } label: {
             ZStack {
                 Circle()
                     .fill(.white)
@@ -245,7 +233,7 @@ struct CameraView: View {
                 .frame(width: 56, height: 56)
                 .glassEffect(.regular)
         }
-        .disabled(store.capturedImages.isEmpty)
+        .disabled(store.capturedImages.isEmpty || !store.retakeWaypointIDs.isEmpty)
     }
     
     private var bottomGradient: some View {
@@ -280,7 +268,8 @@ struct CameraView: View {
             opacity: 0.9,
             systemImage: AppIcon.unavailable,
             title: "Camera Access is denied or restricted",
-            subtitle: "Camera access is required to take the photo."
+            subtitle: "Camera access is required to take the photo.",
+            buttonTitle: "Open Settings"
         )
     }
     
@@ -295,6 +284,8 @@ struct CameraView: View {
                 .overlay(alignment: .bottom) {
                     HStack {
                         Button {
+                            guard !isSavingPreviewWaypoint else { return }
+
                             cameraManager.cameraState = .takePhoto
                         } label: {
                             Image(systemName: AppIcon.xMark)
@@ -306,17 +297,25 @@ struct CameraView: View {
                         
                         Spacer()
                         Spacer()
-                        
+
                         Button {
-                            store.addWaypoint(image, location: location, altitude: altimeterManager.currentSample())
-                            cameraManager.cameraState = .takePhoto
+                            savePreviewWaypoint(image: image, location: location)
                         } label: {
-                            Image(systemName: AppIcon.checkmark)
-                                .bold()
-                                .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .glassEffect(.regular)
+                            ZStack {
+                                Image(systemName: AppIcon.checkmark)
+                                    .bold()
+                                    .foregroundStyle(.white)
+                                    .opacity(isSavingPreviewWaypoint ? 0 : 1)
+
+                                if isSavingPreviewWaypoint {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                            }
+                            .frame(width: 56, height: 56)
+                            .glassEffect(.regular)
                         }
+                        .disabled(isSavingPreviewWaypoint)
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 40)
@@ -324,21 +323,55 @@ struct CameraView: View {
         }
         .ignoresSafeArea()
     }
-    
+
+    private func savePreviewWaypoint(image: UIImage, location: CLLocation?) {
+        guard !isSavingPreviewWaypoint else { return }
+
+        isSavingPreviewWaypoint = true
+
+        Task { @MainActor in
+            let landmark = await landmarkResolver.landmark(near: location)
+            if let retakeIndex {
+                store.replaceWaypoint(
+                    at: retakeIndex,
+                    image: image,
+                    location: location,
+                    landmark: landmark,
+                    altitude: altimeterManager.currentSample()
+                )
+                finishCapture()
+            } else {
+                store.addWaypoint(
+                    image,
+                    location: location,
+                    landmark: landmark,
+                    altitude: altimeterManager.currentSample()
+                )
+                cameraManager.cameraState = .takePhoto
+            }
+            isSavingPreviewWaypoint = false
+        }
+    }
+
     @ViewBuilder
     private var cameraContent: some View {
-#if targetEnvironment(simulator)
-        UnavailableView(
-            icon: AppIcon.unavailable,
-            title: "Camera Access is denied or restricted",
-            description: "Camera preview is unavailable in Simulator. Run the app on a real iPhone to use the camera."
-        )
-#else
-        CameraPreview(session: cameraManager.session) { devicePoint, _ in
-            cameraManager.focus(at: devicePoint)
-        }
-        .ignoresSafeArea()
-#endif
+        #if targetEnvironment(simulator)
+            UnavailableView(
+                systemImage: AppIcon.unavailable,
+                title: "Camera Access is denied or restricted",
+                subtitle: "Camera preview is unavailable in Simulator. Run the app on a real iPhone to use the camera.",
+                buttonTitle: "Open Settings"
+            ) {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        #else
+            CameraPreview(session: cameraManager.session) { devicePoint, _ in
+                cameraManager.focus(at: devicePoint)
+            }
+            .ignoresSafeArea()
+        #endif
     }
     
     private var headerSection: some View {
@@ -350,7 +383,7 @@ struct CameraView: View {
                     Image(systemName: AppIcon.chevronLeft)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.white)
-                        .frame(width: 52, height: 52)
+                        .frame(width: 44, height: 44)
                 }
                 .glassEffect(.regular, in: Circle())
                 
@@ -418,12 +451,22 @@ struct CameraView: View {
     }
     
     private func cancelCapture() {
-        store.clearParkingSpot()
+        if retakeIndex == nil {
+            store.clearParkingSpot()
+        }
         onPop()
     }
     
     private func finishCapture() {
         didFinishCapture = true
         onDone()
+    }
+
+    private func openLandmarkGallery() {
+        guard !store.capturedImages.isEmpty else { return }
+
+        showDoneAlert = false
+        isOpeningLandmarkGallery = true
+        onTapLandmarks()
     }
 }

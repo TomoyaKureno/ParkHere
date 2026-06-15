@@ -12,10 +12,10 @@ struct WaypointLabel: View {
     var color: Color
     var body: some View {
         Text(text)
-            .font(.caption)
+            .font(.caption2)
             .fontWeight(.semibold)
-            .padding(.horizontal,15)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .foregroundColor(.white)
             .background(color)
             .clipShape(Capsule())
@@ -24,5 +24,5 @@ struct WaypointLabel: View {
 }
 
 #Preview {
-    WaypointLabel(text:"Hello", color: .blue)
+    WaypointLabel(text: "Hello", color: .blue)
 }

@@ -5,8 +5,8 @@
 //  Created by Marzandi Zahran Affandi Leta on 04/06/26.
 //
 
-import SwiftUI
 import CoreLocation
+import SwiftUI
 
 struct HomeView: View {
     @ObservedObject var store: WaypointStore
@@ -22,18 +22,27 @@ struct HomeView: View {
         ZStack {
             Color.surfacePrimaryBlack
                 .ignoresSafeArea()
-            
+
             VStack {
-                if (locationManager.authorizationStatus == .denied) {
-                    UnavailableView()
-                } else {
-                    if (store.hasSavedParkingSpot) {
-                        VStack {
-                            HomeHasParkingSpotView()
+                if locationManager.authorizationStatus == .denied {
+                    UnavailableView(
+                        systemImage: "location.slash.fill",
+                        title: "Location Access is Off",
+                        subtitle: "Turn on your location services to save your parking spot and capture waypoints",
+                        buttonTitle: "Open Settings"
+                    ) {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
                         }
-                        
+                    }
+                } else {
+                    if store.hasCompletedParkingCapture, let parkingSpot = store.capturedWaypoints.first {
+                        VStack {
+                            HomeHasParkingSpotView(parkingSpotData: parkingSpot)
+                        }
+
                         Spacer()
-                        
+
                         VStack(spacing: 12) {
                             Button {
                                 store.prepareTracking()
@@ -42,7 +51,7 @@ struct HomeView: View {
                                 Text("Navigate to Car")
                             }
                             .buttonStyle(.primaryStyle)
-                            
+
                             Button {
                                 showClearParkingSpotAlert = true
                             } label: {
@@ -50,19 +59,19 @@ struct HomeView: View {
                             }
                             .buttonStyle(.secondaryStyle)
                         }
-                        
+
                     } else {
                         HStack {
-                            HomeCurrentLocationView()
+                            HomeCurrentLocationView(landmark: locationManager.currentLandmark)
                             Spacer()
                         }
-                        
+
                         Spacer()
-                        
+
                         HomeEmptyStateView()
-                        
+
                         Spacer()
-                        
+
                         VStack(spacing: 12) {
                             Button {
                                 saveParkingSpot()
@@ -75,7 +84,7 @@ struct HomeView: View {
                                 }
                             }
                             .buttonStyle(.primaryStyle)
-                            .disabled(store.hasSavedParkingSpot || isSavingParkingSpot)
+                            .disabled(isSavingParkingSpot || locationManager.isRequestingLocation)
                         }
                     }
                 }
@@ -92,15 +101,15 @@ struct HomeView: View {
             }
             .tint(Color.brandPrimaryBlue)
             .keyboardShortcut(.defaultAction)
-            
-            Button("Cancel", role: .cancel) {
-            }
+
+            Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will delete your current parking spot and all associated waypoint photos.")
         }
     }
-    
+
     // MARK: - Private Function
+
     private func saveParkingSpot() {
         isSavingParkingSpot = true
         locationManager.requestCurrentLocation { location in

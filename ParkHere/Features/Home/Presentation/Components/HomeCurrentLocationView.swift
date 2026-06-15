@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct HomeCurrentLocationView: View {
+    let landmark: CurrentLandmark
+
     var body: some View {
         HStack(alignment: .center, spacing: 4) {
             Image(systemName: "location.fill")
@@ -20,24 +22,25 @@ struct HomeCurrentLocationView: View {
                     .font(.footnoteSemiBold)
                     .opacity(0.5)
                 
-                Text("Mega Mall, Batam")
+                Text(landmark.title)
                     .foregroundStyle(Color.surfaceSecondaryWhite)
                     .font(.subheadlineBold)
                 
-                Text("Jl. Jend. Sudirman No.1, Batam Center, Batam")
+                Text(landmark.subtitle)
                     .foregroundStyle(Color.surfaceSecondaryWhite)
                     .font(.footnoteSemiBold)
                     .opacity(0.5)
+                    .lineLimit(2)
             }
         }
     }
 }
 
 #Preview("Preview Dark Mode") {
-    HomeCurrentLocationView()
+    HomeCurrentLocationView(landmark: .loading)
         .preferredColorScheme(.dark)
 }
 
 #Preview("Preview Light Mode") {
-    HomeCurrentLocationView()
+    HomeCurrentLocationView(landmark: .loading)
 }
