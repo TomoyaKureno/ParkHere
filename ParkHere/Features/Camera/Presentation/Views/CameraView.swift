@@ -22,6 +22,12 @@ struct CameraView: View {
     @State private var isWaypointSheetPresented = false
     @State private var showDoneAlert = false
     @State private var didFinishCapture = false
+    @AppStorage("hasSeenCameraOverlay") private var hasSeenCameraOverlay = false
+    @State private var showOverlay = false
+    @State private var overlayIndex: Int = 0
+    @State private var showDiscardAlert = false
+    @AppStorage("hasSeenFirstPhotoAlert") private var hasSeenFirstPhotoAlert = false
+    @State private var showFirstPhotoAlert = false
 
     var body: some View {
         ZStack {
@@ -38,7 +44,11 @@ struct CameraView: View {
                         HStack(alignment: .top, spacing: 8) {
                             HStack(alignment: .top, spacing: 16) {
                                 Button {
-                                    cancelCapture()
+                                    if store.capturedWaypoints.isEmpty {
+                                        cancelCapture()
+                                    } else {
+                                        showDiscardAlert = true
+                                    }
                                 } label: {
                                     Image(systemName: AppIcon.chevronLeft)
                                         .font(.title3.weight(.semibold))
@@ -48,10 +58,10 @@ struct CameraView: View {
                                 .glassEffect(.regular, in: Circle())
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Capture Waypoint")
+                                    Text(store.capturedWaypoints.isEmpty ? "Capture Parking Spot" : "Capture Landmark \(store.capturedWaypoints.count)")
                                         .font(.title3Bold)
 
-                                    Text("Capture multiple landmarks to help guide you back to your parking spot")
+                                    Text(store.capturedWaypoints.isEmpty ? "Start by capturing photo around your parking spot (car or unique object)" : "Capture multiple landmarks to help guide you back to your parking spot")
                                         .font(.subheadlineReg)
                                 }
                                 .foregroundStyle(.white)
@@ -59,9 +69,18 @@ struct CameraView: View {
 
                             Spacer(minLength: 0)
 
-                            Image(systemName: AppIcon.mapPin)
-                                .font(.titleBold)
-                                .foregroundStyle(.blue)
+                            Button {
+                                overlayIndex = 0
+                                withAnimation {
+                                    showOverlay = true
+                                }
+                            } label: {
+                                Image(systemName: AppIcon.questionMarkCircle)
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(Color.brandPrimaryBlue)
+                                    .frame(width: 52, height: 52)
+                            }
+                            .glassEffect(.regular, in: Circle())
                         }
                         .padding([.top, .horizontal], 16)
                         .padding(.bottom, 40)
@@ -122,9 +141,10 @@ struct CameraView: View {
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
                                             .frame(width: 56, height: 56)
-                                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                                            .clipShape(Circle())
                                     } else {
-                                        Color.clear
+                                        Circle()
+                                            .fill(Color.white.opacity(0.16))
                                             .frame(width: 56, height: 56)
                                     }
                                 }
@@ -150,6 +170,11 @@ struct CameraView: View {
                                         if cameraManager.isLoading || locationManager.isRequestingLocation {
                                             ProgressView()
                                                 .tint(.black)
+                                        } else {
+                                            Text("\(store.capturedWaypoints.count)")
+                                                .font(.title2)
+                                                .bold()
+                                                .foregroundStyle(.black)
                                         }
                                     }
                                 }
@@ -164,13 +189,10 @@ struct CameraView: View {
                                 Button {
                                     showDoneAlert = true
                                 } label: {
-                                    Image(systemName: AppIcon.checkmark)
-                                        .bold()
-                                        .foregroundStyle(.white)
-                                        .frame(width: 56, height: 56)
-                                        .glassEffect(.regular)
+                                    Text("Save")
                                 }
-                                .disabled(store.capturedImages.isEmpty)
+                                .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
+                                .disabled(store.capturedWaypoints.isEmpty)
                             }
                             .padding(.horizontal, 24)
                         }
@@ -213,6 +235,9 @@ struct CameraView: View {
                         Button {
                             store.addWaypoint(image, location: location, altitude: altimeterManager.currentSample())
                             cameraManager.cameraState = .takePhoto
+                            if !hasSeenFirstPhotoAlert {
+                                showFirstPhotoAlert = true
+                            }
                         } label: {
                             Image(systemName: AppIcon.checkmark)
                                 .bold()
@@ -225,12 +250,18 @@ struct CameraView: View {
                     .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }
+            CameraOverlayView(isPresented: $showOverlay)
         }
         .onAppear {
             pinchStartZoom = cameraManager.zoomFactor
             cameraManager.startSession()
             locationManager.requestAccessAndStartUpdating()
             altimeterManager.start()
+            
+            if !hasSeenCameraOverlay {
+                showOverlay = true
+                hasSeenCameraOverlay = true
+            }
         }
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
             guard !isPinching else { return }
@@ -259,17 +290,34 @@ struct CameraView: View {
         )
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .alert("Ready to save?", isPresented: $showDoneAlert) {
-            Button("Review Waypoints", role: .cancel) {
+        .alert("Save parking spot?", isPresented: $showDoneAlert) {
+            Button("Not Yet", role: .cancel) {
                 showDoneAlert = false
-                isWaypointSheetPresented = true
             }
 
-            Button("Save & Finish", role: .none) {
+            Button("Save", role: .none) {
                 finishCapture()
             }
         } message: {
-            Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your waypoints before saving.")
+            Text("Your parking spot and landmark photos will be saved to help you find your car later.")
+        }
+        .alert("Discard the landmark photos?", isPresented: $showDiscardAlert) {
+            Button("Keep Photo", role: .cancel) {
+                showDiscardAlert = false
+            }
+            Button("Discard", role: .destructive) {
+                cancelCapture()
+            }
+        } message: {
+            Text("Any landmark photos you've captured will be lost if you leave now")
+        }
+        .alert("Great, you have taken your first photo!", isPresented: $showFirstPhotoAlert) {
+            Button("Got it!", role: .cancel) {
+                showFirstPhotoAlert = false
+                hasSeenFirstPhotoAlert = true
+            }
+        } message: {
+            Text("Add more pictures as you walk further.")
         }
         .sheet(isPresented: $isWaypointSheetPresented) {
             WaypointSheet(

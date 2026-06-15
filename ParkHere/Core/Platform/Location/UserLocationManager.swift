@@ -40,7 +40,12 @@ final class UserLocationManager: NSObject, ObservableObject {
     }
 
     func requestAccessAndStartUpdating() {
-        handleAuthorizationStatus(locationManager.authorizationStatus)
+        let status = locationManager.authorizationStatus
+        if status == .notDetermined {
+            locationManager.requestWhenInUseAuthorization()
+        } else {
+            handleAuthorizationStatus(status)
+        }
     }
 
     func stopUpdating() {
@@ -195,7 +200,6 @@ final class UserLocationManager: NSObject, ObservableObject {
             }
         case .notDetermined:
             statusText = "Waiting for location permission"
-            locationManager.requestWhenInUseAuthorization()
         case .denied, .restricted:
             statusText = "Location permission is off"
             completePendingRequest(with: nil)
