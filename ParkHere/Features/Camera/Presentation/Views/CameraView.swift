@@ -14,6 +14,7 @@ struct CameraView: View {
     @ObservedObject var store: WaypointStore
     @ObservedObject var locationManager: UserLocationManager
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject var altimeterManager: AltimeterManager
 
     let onDone: () -> Void
     let onPop: () -> Void
@@ -30,6 +31,11 @@ struct CameraView: View {
             Color.black
                 .ignoresSafeArea()
 
+            if altimeterManager.isMotionAccessDenied {
+                VStack { UnavailableView.motion }
+            } else {
+                if case .takePhoto = cameraManager.cameraState {
+                    cameraContent
             if case .takePhoto = cameraManager.cameraState {
                 takePhotoView
             } else if case .previewPhoto(_, let image, let location) = cameraManager.cameraState {
@@ -40,6 +46,7 @@ struct CameraView: View {
             pinchStartZoom = cameraManager.zoomFactor
             cameraManager.startSession()
             locationManager.requestAccessAndStartUpdating()
+            altimeterManager.start()
         }
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
             guard !isPinching else { return }
@@ -204,6 +211,8 @@ struct CameraView: View {
             locationManager.requestCurrentLocation { location in
                 guard let location else { return }
 
+                let altitude = altimeterManager.currentSample()
+                store.saveParkingLocation(location, altitude: altitude)
                 cameraManager.takePhoto(location: location)
             }
         } label: {
@@ -295,9 +304,10 @@ struct CameraView: View {
                         }
 
                         Spacer()
+                        Spacer()
 
                         Button {
-                            store.addWaypoint(image, location: location)
+                            store.addWaypoint(image, location: location, altitude: altimeterManager.currentSample())
                             cameraManager.cameraState = .takePhoto
                         } label: {
                             Image(systemName: AppIcon.checkmark)

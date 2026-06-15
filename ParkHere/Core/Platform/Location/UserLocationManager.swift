@@ -140,6 +140,14 @@ final class UserLocationManager: NSObject, ObservableObject {
 
         return distance <= arrivalRadius(targetAccuracy: targetAccuracy)
     }
+    
+    func setBackgroundUpdates(_ enabled: Bool) {
+        guard authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse else {
+            return
+        }
+        locationManager.allowsBackgroundLocationUpdates = enabled
+        locationManager.pausesLocationUpdatesAutomatically = !enabled
+    }
 
     func isOutsideArrivalExitRadius(targetCoordinate: CLLocationCoordinate2D?) -> Bool {
         guard let distance = distance(to: targetCoordinate) else { return true }
