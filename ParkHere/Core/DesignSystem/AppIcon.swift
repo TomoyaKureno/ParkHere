@@ -9,6 +9,7 @@ import SwiftUI
 
 enum AppIcon {
     static let questionMark = "questionmark"
+    static let questionMarkCircle = "questionmark.circle"
     static let mapPin = "mappin"
     static let mapPinCircleFill = "mappin.circle.fill"
     static let xMark = "xmark"

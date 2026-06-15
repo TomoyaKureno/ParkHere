@@ -10,12 +10,14 @@ import SwiftUI
 // MARK: - Button Style
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    var width: CGFloat? = 332
+    var height: CGFloat = 50
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(isEnabled ? Color.white : Color.surfaceSecondaryWhite)
             .bold()
-            .frame(width: 332, height: 50)
+            .frame(width: width, height: height)
             .background(isEnabled ? Color.brandPrimaryBlue : Color.surfaceSecondaryWhite)
             .clipShape(.capsule)
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)

@@ -17,10 +17,10 @@ struct UnavailableView: View {
 
     init(
         opacity: CGFloat = 1.0,
-        systemImage: String,
-        title: String,
-        subtitle: String,
-        buttonTitle: String,
+        systemImage: String = "location.slash.fill",
+        title: String = "Location Access is Off",
+        subtitle: String = "Turn on your location services to save your parking spot.",
+        buttonTitle: String = "Open Settings",
         buttonAction: (() -> Void)? = nil
     ) {
         self.opacity = opacity

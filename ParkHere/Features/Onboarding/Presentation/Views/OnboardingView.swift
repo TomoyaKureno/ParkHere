@@ -12,7 +12,10 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Image("Onboarding1")
+            Color.white
+                .ignoresSafeArea()
+
+            Image("OnboardingImg0")
                 .resizable()
                 .frame(width:282, height: 615)
                 .ignoresSafeArea()
@@ -30,14 +33,15 @@ struct OnboardingView: View {
 
             VStack(spacing: 24) {
                 Spacer()
-                HStack(spacing: 65) {                    Image("Onboarding1-1")
+                HStack(spacing: 100) {                    Image("OnboardingImg1")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 149, height: 168)   .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
-                    Image("Onboarding1-2")
+                        .frame(width: 117, height: 290)   .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
+                    Image("OnboardingImg2")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 139, height: 239)
+                        .frame(width: 127, height: 272)
+                        .padding(.top,100)
                         .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
                 }
                 
@@ -51,6 +55,7 @@ struct OnboardingView: View {
                         .font(.callout)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.9))
+                        .padding(.top, 15)
                         .padding(.horizontal, 40)
                 }
                 Spacer()

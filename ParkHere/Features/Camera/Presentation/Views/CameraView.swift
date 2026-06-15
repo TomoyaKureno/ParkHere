@@ -15,7 +15,7 @@ struct CameraView: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var altimeterManager: AltimeterManager
     let retakeIndex: Int?
-    
+
     let onDone: () -> Void
     let onPop: () -> Void
     let onTapLandmarks: () -> Void
@@ -29,19 +29,26 @@ struct CameraView: View {
     @State private var didFinishCapture = false
     @State private var isSavingPreviewWaypoint = false
     @State private var isOpeningLandmarkGallery = false
+    @AppStorage("hasSeenCameraOverlay") private var hasSeenCameraOverlay = false
+    @State private var showOverlay = false
+    @State private var showDiscardAlert = false
+    @AppStorage("hasSeenFirstPhotoAlert") private var hasSeenFirstPhotoAlert = false
+    @State private var showFirstPhotoAlert = false
 
     var body: some View {
         ZStack {
             Color.black
                 .ignoresSafeArea()
-            
+
             if altimeterManager.isMotionAccessDenied {
                 VStack { UnavailableView.motion }
             } else if case .takePhoto = cameraManager.cameraState {
                 takePhotoView
-            } else if case .previewPhoto(_, let image, let location) = cameraManager.cameraState {
-                previewPhotoView(image: image, location: location)
+            } else if case .previewPhoto(_, let image, _) = cameraManager.cameraState {
+                capturedPhotoSavingView(image: image)
             }
+
+            CameraOverlayView(isPresented: $showOverlay)
         }
         .onAppear {
             isOpeningLandmarkGallery = false
@@ -49,6 +56,11 @@ struct CameraView: View {
             cameraManager.startSession()
             locationManager.requestAccessAndStartUpdating()
             altimeterManager.start()
+
+            if !hasSeenCameraOverlay {
+                showOverlay = true
+                hasSeenCameraOverlay = true
+            }
         }
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
             guard !isPinching else { return }
@@ -58,13 +70,14 @@ struct CameraView: View {
             switch newValue {
             case .takePhoto:
                 cameraManager.startSession()
-            case .previewPhoto:
+            case .previewPhoto(_, let image, let location):
                 cameraManager.stopSession()
+                saveCapturedWaypoint(image: image, location: location)
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
-                
+
             if case .takePhoto = cameraManager.cameraState {
                 cameraManager.startSession()
             }
@@ -72,7 +85,7 @@ struct CameraView: View {
         .onDisappear {
             cameraManager.stopSession()
             altimeterManager.stop()
-                
+
             if !didFinishCapture && retakeIndex == nil && !isOpeningLandmarkGallery {
                 store.clearParkingSpot()
             }
@@ -80,22 +93,40 @@ struct CameraView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .alert("Ready to save?", isPresented: $showDoneAlert) {
-            Button("Review Waypoints", role: .cancel) {
+            Button("Review Landmarks", role: .cancel) {
                 openLandmarkGallery()
             }
-                
+
             Button("Save & Finish", role: .none) {
                 finishCapture()
             }
         } message: {
-            Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your waypoints before saving.")
+            Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your landmarks before saving.")
+        }
+        .alert("Discard the landmark photos?", isPresented: $showDiscardAlert) {
+            Button("Keep Photo", role: .cancel) {
+                showDiscardAlert = false
+            }
+            Button("Discard", role: .destructive) {
+                cancelCapture()
+            }
+        } message: {
+            Text("Any landmark photos you've captured will be lost if you leave now.")
+        }
+        .alert("Great, you have taken your first photo!", isPresented: $showFirstPhotoAlert) {
+            Button("Got it!", role: .cancel) {
+                showFirstPhotoAlert = false
+                hasSeenFirstPhotoAlert = true
+            }
+        } message: {
+            Text("Add more pictures as you walk further.")
         }
     }
-    
+
     private var takePhotoView: some View {
         ZStack {
             cameraContent
-            
+
             VStack {
                 headerSection
 
@@ -104,14 +135,81 @@ struct CameraView: View {
                 bottomControlsSection
             }
             .ignoresSafeArea(edges: .bottom)
-            
+
             if cameraManager.shouldShowSettingsButton {
                 cameraPermissionUnavailableView
             }
         }
         .gesture(pinchGesture)
     }
-    
+
+    private var headerSection: some View {
+        HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: 16) {
+                Button {
+                    if store.capturedWaypoints.isEmpty {
+                        cancelCapture()
+                    } else {
+                        showDiscardAlert = true
+                    }
+                } label: {
+                    Image(systemName: AppIcon.chevronLeft)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                }
+                .glassEffect(.regular, in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(cameraTitle)
+                        .font(.title3Bold)
+
+                    Text(cameraSubtitle)
+                        .font(.subheadlineReg)
+                }
+                .foregroundStyle(.white)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                withAnimation {
+                    showOverlay = true
+                }
+            } label: {
+                Image(systemName: AppIcon.questionMarkCircle)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.brandPrimaryBlue)
+                    .frame(width: 52, height: 52)
+            }
+            .glassEffect(.regular, in: Circle())
+        }
+        .padding([.top, .horizontal], 16)
+        .padding(.bottom, 40)
+        .frame(maxWidth: .infinity)
+        .background(topGradient)
+    }
+
+    private var cameraTitle: String {
+        if retakeIndex != nil {
+            return "Retake Landmark"
+        }
+
+        return store.capturedWaypoints.isEmpty
+            ? "Capture Parking Spot"
+            : "Capture Landmark \(store.capturedWaypoints.count)"
+    }
+
+    private var cameraSubtitle: String {
+        if retakeIndex != nil {
+            return "Retake this photo to keep your route landmarks complete."
+        }
+
+        return store.capturedWaypoints.isEmpty
+            ? "Start by capturing photo around your parking spot (car or unique object)"
+            : "Capture multiple landmarks to help guide you back to your parking spot"
+    }
+
     private var bottomControlsSection: some View {
         VStack(spacing: 24) {
             zoomAndStatusSection
@@ -123,17 +221,17 @@ struct CameraView: View {
         .frame(maxWidth: .infinity)
         .background(bottomGradient)
     }
-    
+
     private var zoomAndStatusSection: some View {
         VStack(spacing: 12) {
             zoomButtonsSection
-            
+
             Text(locationManager.statusText)
                 .font(.footnote)
                 .foregroundStyle(.white)
         }
     }
-    
+
     private var zoomButtonsSection: some View {
         HStack(spacing: 16) {
             if cameraManager.cameraPosition == .back {
@@ -151,7 +249,7 @@ struct CameraView: View {
             flashButton
         }
     }
-    
+
     private var flashButton: some View {
         Button {
             cameraManager.cycleFlashMode()
@@ -165,7 +263,7 @@ struct CameraView: View {
         }
         .disabled(!cameraManager.isFlashAvailable)
     }
-    
+
     private var captureControlsSection: some View {
         HStack {
             thumbnailButton
@@ -176,7 +274,7 @@ struct CameraView: View {
         }
         .padding(.horizontal, 24)
     }
-    
+
     private var thumbnailButton: some View {
         Button {
             openLandmarkGallery()
@@ -186,33 +284,39 @@ struct CameraView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .clipShape(Circle())
             } else {
-                Color.clear
+                Circle()
+                    .fill(Color.white.opacity(0.16))
                     .frame(width: 56, height: 56)
             }
         }
-        .disabled(store.capturedImages.isEmpty)
+        .disabled(store.capturedImages.isEmpty || retakeIndex != nil)
     }
-    
+
     private var captureButton: some View {
         let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation
-        
-            return Button {
-                locationManager.requestCurrentLocation { location in
-                    guard let location else { return }
 
-                    cameraManager.takePhoto(location: location)
-                }
-            } label: {
+        return Button {
+            locationManager.requestCurrentLocation { location in
+                guard let location else { return }
+
+                cameraManager.takePhoto(location: location)
+            }
+        } label: {
             ZStack {
                 Circle()
                     .fill(.white)
                     .frame(width: 64, height: 64)
-                
+
                 if isBusy {
                     ProgressView()
                         .tint(.black)
+                } else if retakeIndex == nil {
+                    Text("\(store.capturedWaypoints.count)")
+                        .font(.title2)
+                        .bold()
+                        .foregroundStyle(.black)
                 }
             }
         }
@@ -222,20 +326,29 @@ struct CameraView: View {
             Circle().stroke(.white, lineWidth: 4)
         }
     }
-    
+
     private var doneButton: some View {
         Button {
             showDoneAlert = true
         } label: {
-            Image(systemName: AppIcon.checkmark)
-                .bold()
-                .foregroundStyle(.white)
-                .frame(width: 56, height: 56)
-                .glassEffect(.regular)
+            Text("Save")
         }
-        .disabled(store.capturedImages.isEmpty || !store.retakeWaypointIDs.isEmpty)
+        .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
+        .disabled(store.capturedImages.isEmpty || !store.retakeWaypointIDs.isEmpty || retakeIndex != nil)
     }
-    
+
+    private var topGradient: some View {
+        LinearGradient(
+            gradient: Gradient(stops: [
+                .init(color: Color.black.opacity(0.5), location: 0.0),
+                .init(color: Color.black.opacity(0.45), location: 0.25),
+                .init(color: Color.black.opacity(0.0), location: 1.0)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
     private var bottomGradient: some View {
         LinearGradient(
             gradient: Gradient(stops: [
@@ -247,12 +360,12 @@ struct CameraView: View {
             endPoint: .top
         )
     }
-    
+
     private var pinchGesture: some Gesture {
         MagnificationGesture()
             .onChanged { value in
                 guard cameraManager.cameraPosition == .back else { return }
-                
+
                 isPinching = true
                 let newZoom = pinchStartZoom * value
                 cameraManager.setZoomFactor(newZoom)
@@ -262,7 +375,7 @@ struct CameraView: View {
                 pinchStartZoom = cameraManager.zoomFactor
             }
     }
-    
+
     private var cameraPermissionUnavailableView: some View {
         UnavailableView(
             opacity: 0.9,
@@ -272,8 +385,8 @@ struct CameraView: View {
             buttonTitle: "Open Settings"
         )
     }
-    
-    private func previewPhotoView(image: UIImage, location: CLLocation?) -> some View {
+
+    private func capturedPhotoSavingView(image: UIImage) -> some View {
         GeometryReader { proxy in
             Image(uiImage: image)
                 .resizable()
@@ -281,63 +394,31 @@ struct CameraView: View {
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .clipped()
                 .ignoresSafeArea()
-                .overlay(alignment: .bottom) {
-                    HStack {
-                        Button {
-                            guard !isSavingPreviewWaypoint else { return }
-
-                            cameraManager.cameraState = .takePhoto
-                        } label: {
-                            Image(systemName: AppIcon.xMark)
-                                .bold()
-                                .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .glassEffect(.regular)
-                        }
-                        
-                        Spacer()
-                        Spacer()
-
-                        Button {
-                            savePreviewWaypoint(image: image, location: location)
-                        } label: {
-                            ZStack {
-                                Image(systemName: AppIcon.checkmark)
-                                    .bold()
-                                    .foregroundStyle(.white)
-                                    .opacity(isSavingPreviewWaypoint ? 0 : 1)
-
-                                if isSavingPreviewWaypoint {
-                                    ProgressView()
-                                        .tint(.white)
-                                }
-                            }
-                            .frame(width: 56, height: 56)
-                            .glassEffect(.regular)
-                        }
-                        .disabled(isSavingPreviewWaypoint)
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 40)
+                .overlay {
+                    ProgressView()
+                        .tint(.white)
+                        .scaleEffect(1.2)
                 }
         }
         .ignoresSafeArea()
     }
 
-    private func savePreviewWaypoint(image: UIImage, location: CLLocation?) {
+    private func saveCapturedWaypoint(image: UIImage, location: CLLocation?) {
         guard !isSavingPreviewWaypoint else { return }
 
         isSavingPreviewWaypoint = true
 
         Task { @MainActor in
+            let altitude = altimeterManager.currentSample()
             let landmark = await landmarkResolver.landmark(near: location)
+
             if let retakeIndex {
                 store.replaceWaypoint(
                     at: retakeIndex,
                     image: image,
                     location: location,
                     landmark: landmark,
-                    altitude: altimeterManager.currentSample()
+                    altitude: altitude
                 )
                 finishCapture()
             } else {
@@ -345,10 +426,15 @@ struct CameraView: View {
                     image,
                     location: location,
                     landmark: landmark,
-                    altitude: altimeterManager.currentSample()
+                    altitude: altitude
                 )
                 cameraManager.cameraState = .takePhoto
+
+                if !hasSeenFirstPhotoAlert {
+                    showFirstPhotoAlert = true
+                }
             }
+
             isSavingPreviewWaypoint = false
         }
     }
@@ -361,64 +447,33 @@ struct CameraView: View {
                 title: "Camera Access is denied or restricted",
                 subtitle: "Camera preview is unavailable in Simulator. Run the app on a real iPhone to use the camera.",
                 buttonTitle: "Open Settings"
-            ) {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            }
+            )
         #else
-            CameraPreview(session: cameraManager.session) { devicePoint, _ in
-                cameraManager.focus(at: devicePoint)
+            if let errorMessage = cameraManager.errorMessage {
+                cameraUnavailableView(message: errorMessage)
+            } else {
+                CameraPreview(session: cameraManager.session) { devicePoint, _ in
+                    cameraManager.focus(at: devicePoint)
+                }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         #endif
     }
-    
-    private var headerSection: some View {
-        HStack(alignment: .top, spacing: 8) {
-            HStack(alignment: .top, spacing: 16) {
-                Button {
-                    cancelCapture()
-                } label: {
-                    Image(systemName: AppIcon.chevronLeft)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                }
-                .glassEffect(.regular, in: Circle())
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Capture Waypoint")
-                        .font(.title3Bold)
-                    
-                    Text("Capture multiple landmarks to help guide you back to your parking spot")
-                        .font(.subheadlineReg)
-                }
+
+    private func cameraUnavailableView(message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: AppIcon.unavailable)
+                .font(.title)
+                .foregroundStyle(.yellow)
+
+            Text(message)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(.white)
-            }
-            
-            Spacer(minLength: 0)
-            
-            Image(systemName: AppIcon.mapPin)
-                .font(.titleBold)
-                .foregroundStyle(.blue)
+                .padding(.horizontal, 32)
         }
-        .padding([.top, .horizontal], 16)
-        .padding(.bottom, 40)
-        .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(
-                gradient: Gradient(stops: [
-                    .init(color: Color.black.opacity(0.5), location: 0.0),
-                    .init(color: Color.black.opacity(0.45), location: 0.25),
-                    .init(color: Color.black.opacity(0.0), location: 1.0)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
     }
-    
+
     func zoomButton(zoomFactor: CGFloat, zoomMax: CGFloat, isLast: Bool) -> some View {
         let currentZoom = roundedZoomFactor(cameraManager.zoomFactor)
         let buttonZoom = roundedZoomFactor(zoomFactor)
@@ -426,10 +481,10 @@ struct CameraView: View {
         let isSelected = currentZoom >= buttonZoom
             && (isLast ? currentZoom <= nextButtonZoom : currentZoom < nextButtonZoom)
         let displayed = isSelected ? currentZoom : buttonZoom
-        
+
         let epsilon = 1e-9
         let isInteger = abs(displayed.truncatingRemainder(dividingBy: 1)) < epsilon
-        
+
         return (
             Button {
                 cameraManager.setZoomFactor(zoomFactor, animated: true)
@@ -445,18 +500,19 @@ struct CameraView: View {
             .disabled(zoomFactor < cameraManager.minZoomFactor || cameraManager.maxZoomFactor < zoomFactor)
         )
     }
-    
+
     private func roundedZoomFactor(_ factor: CGFloat) -> CGFloat {
         (factor * 10).rounded() / 10
     }
-    
+
     private func cancelCapture() {
         if retakeIndex == nil {
             store.clearParkingSpot()
         }
+
         onPop()
     }
-    
+
     private func finishCapture() {
         didFinishCapture = true
         onDone()
