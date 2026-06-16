@@ -261,11 +261,11 @@ struct TrackerView: View {
     }
 
     private var forwardInset: CGFloat {
-        24
+        32
     }
 
     private var forwardPullStrength: CGFloat {
-        0.4
+        0.55
     }
 
     private var isInsideForwardInset: Bool {
