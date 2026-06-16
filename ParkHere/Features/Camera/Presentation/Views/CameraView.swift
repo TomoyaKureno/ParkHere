@@ -111,26 +111,30 @@ struct CameraView: View {
     }
 
     private var takePhotoView: some View {
-        ZStack {
-            cameraContent
+        GeometryReader { geo in
+            let topInset = geo.safeAreaInsets.top
+            
+            ZStack {
+                cameraContent
 
-            VStack {
-                headerSection
+                VStack {
+                    headerSection(topInset: topInset)
 
-                Spacer()
+                    Spacer()
 
-                bottomControlsSection
+                    bottomControlsSection
+                }
+                .ignoresSafeArea()
+
+                if cameraManager.shouldShowSettingsButton {
+                    cameraPermissionUnavailableView
+                }
             }
-            .ignoresSafeArea(edges: .bottom)
-
-            if cameraManager.shouldShowSettingsButton {
-                cameraPermissionUnavailableView
-            }
+            .gesture(pinchGesture)
         }
-        .gesture(pinchGesture)
     }
 
-    private var headerSection: some View {
+    private func headerSection(topInset: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 8) {
             HStack(alignment: .top, spacing: 16) {
                 Button {
@@ -171,7 +175,8 @@ struct CameraView: View {
             }
             .glassEffect(.regular, in: Circle())
         }
-        .padding([.top, .horizontal], 16)
+        .padding(.horizontal, 16)
+        .padding(.top, 16 + topInset)
         .padding(.bottom, 40)
         .frame(maxWidth: .infinity)
         .background(topGradient)
