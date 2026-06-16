@@ -57,6 +57,7 @@ struct TrackerView: View {
         GeometryReader { geo in
             let safeWidth = safeDimension(geo.size.width)
             let safeHeight = safeDimension(geo.size.height)
+            let topSafeAreaInset = geo.safeAreaInsets.top
             let bottomSafeAreaInset = safeDimension(geo.safeAreaInsets.bottom)
             let overlayHeight = safeHeight * 0.5
             let imageHeight = safeHeight * 0.6
@@ -83,17 +84,18 @@ struct TrackerView: View {
                 VStack {
                     LinearGradient(
                         stops: [
-                            .init(color: .black, location: 0.82),
+                            .init(color: .black, location: 0.85),
                             .init(color: .clear, location: 1)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(maxHeight: overlayHeight)
+                    .frame(maxHeight: overlayHeight + topSafeAreaInset)
 
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
 
                 VStack {
                     VStack(spacing: 24) {
@@ -173,11 +175,11 @@ struct TrackerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if isPreparingTrackingLocation || trackingLocationFailed {
-                    trackingPreparationOverlay
-                        .transition(.opacity)
-                        .zIndex(10)
-                }
+//                if isPreparingTrackingLocation || trackingLocationFailed {
+//                    trackingPreparationOverlay
+//                        .transition(.opacity)
+//                        .zIndex(10)
+//                }
             }
         }
         .onAppear {
