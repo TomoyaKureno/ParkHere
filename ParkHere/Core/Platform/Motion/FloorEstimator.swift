@@ -19,7 +19,7 @@ struct FloorEstimator {
     }
     
     func shortLabel(_ floors: Int) -> String {
-        floors == 0 ? "Same" : "\(abs(floors))"
+        floors == 0 ? "Same Floor" : "\(abs(floors)) Floor"
     }
     
     func icon(_ floors: Int) -> String {

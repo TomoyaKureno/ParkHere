@@ -191,8 +191,10 @@ struct TrackerView: View {
             altimeterManager.stop()
         }
         .onChange(of: altimeterManager.absoluteAltitude) { _, _ in
-            guard let delta = floorDeltaMeters else { return }
-            displayedFloors = estimator.floors(deltaMeters: delta, previousFloors: displayedFloors)
+            updateDisplayedFloorsAndArrival()
+        }
+        .onChange(of: altimeterManager.relativeAltitude) { _, _ in
+            updateDisplayedFloorsAndArrival()
         }
         .onChange(of: store.trackingTargetIndex) { _, _ in
             displayedFloors = 0
@@ -201,14 +203,14 @@ struct TrackerView: View {
             guard hasPreparedTrackingLocation else { return }
 
             updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
-            updateArrivalState(isInsideArrivalRadius: isInsideArrivalRadius)
+            updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
         }
         .onChange(of: isInsideArrivalRadius) { _, newValue in
             guard hasPreparedTrackingLocation else { return }
 
-            updateArrivalState(isInsideArrivalRadius: newValue)
+            updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
 
-            if !newValue {
+            if !isInsideArrivalTarget {
                 updateDisplayedArrowDegree(to: targetArrowDegree)
             }
         }
@@ -218,7 +220,7 @@ struct TrackerView: View {
             advanceLandmarkIfNeeded(isArrivalConfirmed: newValue)
         }
         .onChange(of: directionDegree) { _, _ in
-            guard hasPreparedTrackingLocation, !isInsideArrivalRadius else { return }
+            guard hasPreparedTrackingLocation, !isInsideArrivalTarget else { return }
 
             updateDisplayedArrowDegree(to: targetArrowDegree)
         }
@@ -259,7 +261,11 @@ struct TrackerView: View {
     }
 
     private var forwardInset: CGFloat {
-        20
+        24
+    }
+
+    private var forwardPullStrength: CGFloat {
+        0.4
     }
 
     private var isInsideForwardInset: Bool {
@@ -267,29 +273,11 @@ struct TrackerView: View {
     }
 
     private var forwardAlignmentInset: CGFloat {
-        forwardInset + targetRadiusBearingAllowance
-    }
-
-    private var targetRadiusBearingAllowance: CGFloat {
-        guard
-            let distance = locationManager.distance(to: store.currentTrackingCoordinate),
-            distance > 0
-        else { return 0 }
-
-        let arrivalRadius = locationManager.arrivalRadius(
-            targetAccuracy: store.currentTrackingHorizontalAccuracy
-        )
-
-        guard distance > arrivalRadius else { return 180 }
-
-        let radiusRatio = min(arrivalRadius / distance, 1)
-        let allowance = asin(radiusRatio) * 180 / .pi
-
-        return min(CGFloat(allowance), 60)
+        forwardInset
     }
 
     private var targetArrowDegree: CGFloat {
-        directionDegree
+        forwardPulledDegree(from: directionDegree)
     }
 
     private var normalizedArrowDegree: CGFloat {
@@ -332,12 +320,25 @@ struct TrackerView: View {
         )
     }
 
+    private var isInsideArrivalTarget: Bool {
+        guard isInsideArrivalRadius else { return false }
+        guard isTrackingParkingSpot else { return true }
+
+        return isSameParkingAltitude
+    }
+
+    private var isSameParkingAltitude: Bool {
+        guard floorDeltaMeters != nil else { return false }
+
+        return displayedFloors == 0
+    }
+
     private var isTrackingParkingSpot: Bool {
         store.isTrackingParkingSpot
     }
 
     private var trackerBackgroundColor: Color {
-        isArrivalConfirmed || isInsideArrivalRadius || isInsideForwardInset
+        isArrivalConfirmed || isInsideArrivalTarget || isInsideForwardInset
             ? Color.brandAccentGreen
             : Color.surfaceGray
     }
@@ -567,6 +568,19 @@ struct TrackerView: View {
         return min(difference, 360 - difference)
     }
 
+    private func signedForwardOffset(from degree: CGFloat) -> CGFloat {
+        let normalized = normalizedDegree(degree)
+
+        return normalized > 180 ? normalized - 360 : normalized
+    }
+
+    private func forwardPulledDegree(from degree: CGFloat) -> CGFloat {
+        let signedOffset = signedForwardOffset(from: degree)
+        guard abs(signedOffset) <= forwardAlignmentInset else { return degree }
+
+        return signedOffset * (1 - forwardPullStrength)
+    }
+
     private func safeDimension(_ value: CGFloat) -> CGFloat {
         guard value.isFinite, value > 0 else { return 0 }
 
@@ -609,11 +623,21 @@ struct TrackerView: View {
         trackingLocationFailed = false
         isPreparingTrackingLocation = false
         updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
-        updateArrivalState(isInsideArrivalRadius: isInsideArrivalRadius)
+        updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
     }
 
-    private func updateArrivalState(isInsideArrivalRadius: Bool) {
-        guard isInsideArrivalRadius else {
+    private func updateDisplayedFloorsAndArrival() {
+        guard let delta = floorDeltaMeters else { return }
+
+        displayedFloors = estimator.floors(deltaMeters: delta, previousFloors: displayedFloors)
+
+        guard hasPreparedTrackingLocation else { return }
+
+        updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
+    }
+
+    private func updateArrivalState(isInsideArrivalTarget: Bool) {
+        guard isInsideArrivalTarget else {
             resetArrivalState()
 
             return
@@ -641,10 +665,7 @@ struct TrackerView: View {
         store.skipToParkingSpot()
         resetArrivalState()
         updateArrivalState(
-            isInsideArrivalRadius: locationManager.isInsideArrivalRadius(
-                targetCoordinate: store.currentTrackingCoordinate,
-                targetAccuracy: store.currentTrackingHorizontalAccuracy
-            )
+            isInsideArrivalTarget: isInsideArrivalTarget
         )
     }
 
@@ -666,10 +687,7 @@ struct TrackerView: View {
             _ = self.store.advanceToNextTrackingTarget()
             self.resetArrivalState()
             self.updateArrivalState(
-                isInsideArrivalRadius: self.locationManager.isInsideArrivalRadius(
-                    targetCoordinate: self.store.currentTrackingCoordinate,
-                    targetAccuracy: self.store.currentTrackingHorizontalAccuracy
-                )
+                isInsideArrivalTarget: self.isInsideArrivalTarget
             )
         }
     }
