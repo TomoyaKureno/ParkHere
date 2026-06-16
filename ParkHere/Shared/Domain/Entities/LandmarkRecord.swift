@@ -2,7 +2,7 @@
 //  LandmarkRecord.swift
 //  ParkHere
 //
-//  Created by Codex on 16/06/26.
+//  Created by Fathariq Dimas on 16/06/26.
 //
 
 import Foundation

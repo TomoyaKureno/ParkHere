@@ -186,12 +186,16 @@ private struct LandmarkImageView: View {
     let onDelete: () -> Void
     let onRetake: () -> Void
 
+    var isParkingSpot: Bool {
+        label.text == "Parking Spot"
+    }
+
     private var landmarkCircleIndex: Int {
         visualIndex + 1
     }
 
     private var glassEffect: Glass {
-        visualIndex < currentLandmarkIndex && !isGallery
+        ((visualIndex < currentLandmarkIndex) || (visualIndex == currentLandmarkIndex && isParkingSpot)) && !isGallery
             ? Glass.regular.tint(.blue.opacity(0.7))
             : Glass.regular
     }
@@ -203,18 +207,31 @@ private struct LandmarkImageView: View {
                     landmarkIndexCircle
 
                     VStack(alignment: .leading) {
-                        Text("You're now heading to")
-                        Text("Next nearest Landmark")
-                            .foregroundStyle(.white.opacity(0.6))
+                        Text(isParkingSpot ? "You've Arrived" : "You're now heading to")
+                        if !isParkingSpot {
+                            Text("Next nearest Landmark")
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .font(.footnote.weight(.semibold))
+                    .font(isParkingSpot ? .headline : .footnote.weight(.semibold))
                 }
                 .frame(width: 200)
 
-                landmarkImage
-                    .padding(.bottom, 8)
-                    .padding(.leading, 40)
+                HStack(spacing: 14) {
+                    if isParkingSpot {
+                        Capsule()
+                            .fill(.clear)
+                            .frame(width: 20)
+                            .glassEffect(glassEffect, in: Capsule())
+                    }
+
+                    landmarkImage
+                        .padding(.bottom, 8)
+                        .padding(.leading, isParkingSpot ? 0 : 40)
+                }
+                .padding(.leading, isParkingSpot ? 7 : 0)
+                .frame(maxWidth: .infinity)
             }
             .padding(.top, 8)
             .frame(height: 280)
@@ -363,7 +380,6 @@ private struct LandmarkDetailSheet: View {
             .frame(height: 500)
             .clipShape(RoundedRectangle(cornerRadius: 8))
     }
-
 }
 
 private struct LandmarkDetail: Identifiable {
@@ -417,7 +433,7 @@ private struct LandmarkBadgeInfo {
 
     return LandmarksView(
         store: store,
-        isGallery: true,
+        isGallery: false,
         currentLandmarkIndex: 3
     ) {} onUseLandmark: { _ in
     } onRetakeLandmark: { _ in
