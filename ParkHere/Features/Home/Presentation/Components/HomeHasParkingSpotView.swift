@@ -27,10 +27,12 @@ struct HomeHasParkingSpotView: View {
             .frame(width: 324)
             
             ZStack {
-                Image(uiImage: parkingSpotData.image)
-                    .resizable()
-                    .scaledToFit()
-                    .cornerRadius(24)
+                AdaptiveImageView(
+                    uiImage: parkingSpotData.image,
+                    width: 338,
+                    height: 450,
+                    cornerRadius: 24
+                )
                 
                 VStack {
                     Spacer()
