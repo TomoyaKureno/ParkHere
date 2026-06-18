@@ -46,6 +46,10 @@ final class UserLocationManager: NSObject, ObservableObject {
         latestRawLocation != nil || currentLocation != nil
     }
 
+    var currentCaptureLocation: CLLocation? {
+        recentLocation(latestRawLocation) ?? recentLocation(currentLocation)
+    }
+
     var isHeadingCalibratedForTracking: Bool {
         guard let heading else { return false }
 
