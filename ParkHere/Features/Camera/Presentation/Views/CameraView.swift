@@ -218,9 +218,22 @@ struct CameraView: View {
         VStack(spacing: 12) {
             zoomButtonsSection
 
-            Text(locationManager.statusText)
+            Text(cameraLocationStatusText)
                 .font(.footnote)
                 .foregroundStyle(.white)
+        }
+    }
+
+    private var cameraLocationStatusText: String {
+        if locationManager.currentCaptureLocation != nil {
+            return locationManager.statusText
+        }
+
+        switch locationManager.authorizationStatus {
+        case .denied, .restricted:
+            return locationManager.statusText
+        default:
+            return "Getting current location"
         }
     }
 
@@ -287,20 +300,24 @@ struct CameraView: View {
     }
 
     private var captureButton: some View {
-        let isBusy = cameraManager.isLoading || locationManager.isRequestingLocation || isSavingPreviewLandmark
+        let captureLocation = locationManager.currentCaptureLocation
+        let isBusy = cameraManager.isLoading || isSavingPreviewLandmark
+        let isCaptureUnavailable = captureLocation == nil
 
         return Button {
-            locationManager.requestCurrentLocation { location in
-                guard let location else { return }
+            guard let captureLocation else {
+                locationManager.requestAccessAndStartUpdating()
 
-                cameraManager.takePhoto(location: location) { image, location in
-                    saveCapturedLandmark(image: image, location: location)
-                }
+                return
+            }
+
+            cameraManager.takePhoto(location: captureLocation) { image, location in
+                saveCapturedLandmark(image: image, location: location)
             }
         } label: {
             ZStack {
                 Circle()
-                    .fill(.white)
+                    .fill(isCaptureUnavailable ? .white.opacity(0.35) : .white)
                     .frame(width: 64, height: 64)
 
                 if isBusy {
@@ -314,10 +331,10 @@ struct CameraView: View {
                 }
             }
         }
-        .disabled(isBusy)
+        .disabled(isBusy || isCaptureUnavailable)
         .padding(8)
         .overlay {
-            Circle().stroke(.white, lineWidth: 4)
+            Circle().stroke(isCaptureUnavailable ? .white.opacity(0.35) : .white, lineWidth: 4)
         }
     }
 

@@ -44,7 +44,6 @@ struct HomeView: View {
 
                         VStack(spacing: 12) {
                             Button {
-                                store.prepareTracking()
                                 onFindParkingSpot()
                             } label: {
                                 Text("Navigate to Car")

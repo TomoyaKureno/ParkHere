@@ -46,6 +46,10 @@ final class UserLocationManager: NSObject, ObservableObject {
         latestRawLocation != nil || currentLocation != nil
     }
 
+    var currentCaptureLocation: CLLocation? {
+        recentLocation(latestRawLocation) ?? recentLocation(currentLocation)
+    }
+
     var isHeadingCalibratedForTracking: Bool {
         guard let heading else { return false }
 
@@ -76,11 +80,6 @@ final class UserLocationManager: NSObject, ObservableObject {
         } else {
             updateAuthorizationStatus(status)
         }
-    }
-
-    func stopUpdating() {
-        locationManager.stopUpdatingLocation()
-        locationManager.stopUpdatingHeading()
     }
 
     func requestCurrentLocation(completion: @escaping (CLLocation?) -> Void) {
@@ -186,12 +185,6 @@ final class UserLocationManager: NSObject, ObservableObject {
         }
         locationManager.allowsBackgroundLocationUpdates = enabled
         locationManager.pausesLocationUpdatesAutomatically = !enabled
-    }
-
-    func isOutsideArrivalExitRadius(targetCoordinate: CLLocationCoordinate2D?) -> Bool {
-        guard let distance = distance(to: targetCoordinate) else { return true }
-
-        return distance > targetExitRadius
     }
 
     private func updateAuthorizationStatus(_ status: CLAuthorizationStatus) {

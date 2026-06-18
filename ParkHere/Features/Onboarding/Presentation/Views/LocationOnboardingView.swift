@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct LocationOnboardingView: View {
-    @Binding var isPresented: Bool
     let onEnableLocation: () -> Void
     
     var body: some View {
@@ -49,9 +48,6 @@ struct LocationOnboardingView: View {
                 // Enable Button
                 Button {
                     onEnableLocation()
-                    withAnimation {
-                        isPresented = false
-                    }
                 } label: {
                     Text("Enable Location")
                 }
@@ -63,5 +59,5 @@ struct LocationOnboardingView: View {
 }
 
 #Preview {
-    LocationOnboardingView(isPresented: .constant(true), onEnableLocation: {})
+    LocationOnboardingView(onEnableLocation: {})
 }
