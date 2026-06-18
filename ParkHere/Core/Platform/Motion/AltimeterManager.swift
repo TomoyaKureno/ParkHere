@@ -21,7 +21,6 @@ final class AltimeterManager: ObservableObject {
     private let queue = OperationQueue()
     private var isRunning: Bool = false
     
-    var isMotionAccessGranted: Bool { authorizationStatus == .authorized }
     var isMotionAccessDenied: Bool {
         authorizationStatus == .denied || authorizationStatus == .restricted
     }

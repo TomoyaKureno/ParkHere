@@ -5,7 +5,6 @@
 //  Created by Fathariq Dimas on 01/06/26.
 //
 
-import UIKit
 import AVFoundation
 import Foundation
 

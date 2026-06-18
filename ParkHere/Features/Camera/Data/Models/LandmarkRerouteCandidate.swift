@@ -8,16 +8,10 @@
 import CoreLocation
 import UIKit
 
-struct LandmarkRerouteCandidate: Identifiable {
+struct LandmarkRerouteCandidate {
     let index: Int
     let image: UIImage
     let title: String
     let subtitle: String
-    let candidateDistance: CLLocationDistance
-    let currentTargetDistance: CLLocationDistance
     let savedDistance: CLLocationDistance
-
-    var id: Int {
-        index
-    }
 }

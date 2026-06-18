@@ -73,8 +73,6 @@ struct LandmarkReroutePromptView: View {
             image: UIImage(resource: .imgLandmark),
             title: "Landmark 1",
             subtitle: "Nearest landmark",
-            candidateDistance: 12,
-            currentTargetDistance: 38,
             savedDistance: 26
         ),
         onStay: {},

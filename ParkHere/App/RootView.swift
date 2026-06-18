@@ -15,22 +15,15 @@ struct RootView: View {
     @StateObject private var altimeterManager = AltimeterManager()
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
     @AppStorage("hasSeenLocationOnboarding") private var hasSeenLocationOnboarding: Bool = false
-    @State private var showLocationOnboarding = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         if !hasSeenOnboarding {
             OnboardingView {
                 hasSeenOnboarding = true
-                if !hasSeenLocationOnboarding {
-                    showLocationOnboarding = true
-                }
             }
-        } else if !hasSeenLocationOnboarding || showLocationOnboarding {
-            LocationOnboardingView(isPresented: Binding(
-                get: { !hasSeenLocationOnboarding },
-                set: { hasSeenLocationOnboarding = !$0; showLocationOnboarding = $0 }
-            )) {
+        } else if !hasSeenLocationOnboarding {
+            LocationOnboardingView {
                 hasSeenLocationOnboarding = true
                 locationManager.requestAccessAndStartUpdating()
             }

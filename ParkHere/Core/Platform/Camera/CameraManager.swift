@@ -30,7 +30,6 @@ final class CameraManager: NSObject, ObservableObject {
 
     @Published var flashMode: CameraFlashMode = .off
     @Published var isFlashAvailable = false
-    @Published var isTorchOn = false
 
     private var sessionIsConfigured = false
     private var shouldRunSession = false
@@ -184,7 +183,6 @@ final class CameraManager: NSObject, ObservableObject {
                 self?.flashMode = .off
             }
 
-            self?.isTorchOn = false
         }
     }
 
@@ -366,35 +364,6 @@ final class CameraManager: NSObject, ObservableObject {
             setFlashMode(.auto)
         case .auto:
             setFlashMode(.off)
-        }
-    }
-
-    func setTorch(_ isOn: Bool) {
-        sessionQueue.async { [weak self] in
-            guard
-                let self,
-                let device = self.currentInput?.device,
-                device.hasTorch,
-                device.isTorchModeSupported(.on)
-            else { return }
-
-            do {
-                try device.lockForConfiguration()
-
-                if isOn {
-                    try device.setTorchModeOn(level: AVCaptureDevice.maxAvailableTorchLevel)
-                } else {
-                    device.torchMode = .off
-                }
-
-                device.unlockForConfiguration()
-
-                DispatchQueue.main.async {
-                    self.isTorchOn = isOn
-                }
-            } catch {
-                publishError(error.localizedDescription)
-            }
         }
     }
 

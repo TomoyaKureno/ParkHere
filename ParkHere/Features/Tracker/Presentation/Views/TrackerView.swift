@@ -21,7 +21,6 @@ struct TrackerView: View {
     private let estimator = FloorEstimator()
 
     @State private var showAlert = false
-    @State private var showSkipToParkingSpotAlert = false
     @State private var displayedArrowDegree: CGFloat = 0
     @State private var arrivalEnteredAt: Date?
     @State private var isArrivalConfirmed = false
@@ -268,15 +267,6 @@ struct TrackerView: View {
         } message: {
             Text("This will clear your saved parking spot and landmark photos")
         }
-        .alert("Skip to parking spot?", isPresented: $showSkipToParkingSpotAlert) {
-            Button("Cancel", role: .cancel) {}
-
-            Button("Show Parking Spot") {
-                skipToParkingSpot()
-            }
-        } message: {
-            Text("This will skip the remaining landmarks and guide you directly to your saved parking spot.")
-        }
     }
 
     private var directionDegree: CGFloat {
@@ -371,12 +361,6 @@ struct TrackerView: View {
 
     private var isTrackingParkingSpot: Bool {
         store.isTrackingParkingSpot
-    }
-
-    private var trackerBackgroundColor: Color {
-        isArrivalConfirmed || isShowingRerouteAnimation || isInsideArrivalTarget || isInsideForwardInset
-            ? Color.brandAccentGreen
-            : Color.surfaceGray
     }
 
     private var isArcFlipped: Bool {
@@ -496,21 +480,7 @@ struct TrackerView: View {
     }
 
     private var floorDeltaMeters: Double? {
-        guard let anchor = store.currentTrackingAltitudeAnchor else { return nil }
-
-        if let current = altimeterManager.absoluteAltitude,
-           let anchorAltitude = anchor.absoluteAltitude
-        {
-            return anchorAltitude - current
-        }
-
-        if let current = altimeterManager.relativeAltitude,
-           let anchorAltitude = anchor.relativeAltitude
-        {
-            return anchorAltitude - current
-        }
-
-        return nil
+        floorDeltaMeters(to: store.currentTrackingAltitudeAnchor)
     }
 
     private var floorValueRow: some View {
@@ -713,14 +683,6 @@ struct TrackerView: View {
     private func resetArrivalState() {
         arrivalEnteredAt = nil
         isArrivalConfirmed = false
-    }
-
-    private func skipToParkingSpot() {
-        store.skipToParkingSpot()
-        resetArrivalState()
-        updateArrivalState(
-            isInsideArrivalTarget: isInsideArrivalTarget
-        )
     }
 
     private func evaluateRerouteCandidateIfNeeded() {

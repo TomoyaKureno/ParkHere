@@ -5,10 +5,9 @@
 //  Created by Fathariq Dimas on 01/06/26.
 //
 
-import UIKit
 import AVFoundation
 
-enum CameraFlashMode: String, CaseIterable {
+enum CameraFlashMode: String {
     case off
     case on
     case auto

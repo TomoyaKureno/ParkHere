@@ -10,7 +10,7 @@ import CoreLocation
 import Foundation
 import UIKit
 
-struct ParkingLandmark: Identifiable, Equatable {
+struct ParkingLandmark: Identifiable {
     let id: UUID
     let image: UIImage
     let latitude: Double?
@@ -56,9 +56,6 @@ struct ParkingLandmark: Identifiable, Equatable {
         self.altitude = altitude
     }
 
-    static func == (lhs: ParkingLandmark, rhs: ParkingLandmark) -> Bool {
-        lhs.id == rhs.id
-    }
 }
 
 enum LandmarkSelectionState {
@@ -269,13 +266,9 @@ final class LandmarkStore: ObservableObject {
         repository?.clearLandmarks()
     }
 
-    func prepareTracking() {
-        trackingTargetIndex = capturedLandmarks.indices.last
-    }
-
     func prepareTracking(from location: CLLocation?) {
         guard let location else {
-            prepareTracking()
+            trackingTargetIndex = capturedLandmarks.indices.last
             return
         }
 
@@ -297,10 +290,6 @@ final class LandmarkStore: ObservableObject {
         self.trackingTargetIndex = trackingTargetIndex - 1
 
         return true
-    }
-
-    func skipToParkingSpot() {
-        trackingTargetIndex = capturedLandmarks.isEmpty ? nil : 0
     }
 
     func landmarkSelectionState(for index: Int) -> LandmarkSelectionState {
@@ -342,7 +331,7 @@ final class LandmarkStore: ObservableObject {
 
         return capturedLandmarks.indices
             .filter { $0 < trackingTargetIndex }
-            .compactMap { index -> LandmarkRerouteCandidate? in
+            .compactMap { index -> (candidate: LandmarkRerouteCandidate, distance: CLLocationDistance)? in
                 let landmark = capturedLandmarks[index]
 
                 guard
@@ -355,19 +344,21 @@ final class LandmarkStore: ObservableObject {
 
                 guard savedDistance >= minimumSavedDistance else { return nil }
 
-                return LandmarkRerouteCandidate(
-                    index: index,
-                    image: landmark.image,
-                    title: trackingTitle(for: index),
-                    subtitle: landmark.landmark.title,
-                    candidateDistance: candidateDistance,
-                    currentTargetDistance: currentTargetDistance,
-                    savedDistance: savedDistance
+                return (
+                    LandmarkRerouteCandidate(
+                        index: index,
+                        image: landmark.image,
+                        title: trackingTitle(for: index),
+                        subtitle: landmark.landmark.title,
+                        savedDistance: savedDistance
+                    ),
+                    candidateDistance
                 )
             }
             .min { lhs, rhs in
-                lhs.candidateDistance < rhs.candidateDistance
-            }
+                lhs.distance < rhs.distance
+            }?
+            .candidate
     }
 
     func rerouteTracking(to index: Int) {
