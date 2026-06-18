@@ -402,6 +402,7 @@ final class CameraManager: NSObject, ObservableObject {
         guard !isLoading else { return }
 
         let selectedFlashMode = flashMode.avFlashMode
+        let videoOrientation = currentVideoOrientation()
 
         isLoading = true
         errorMessage = nil
@@ -413,6 +414,12 @@ final class CameraManager: NSObject, ObservableObject {
 
             if self.photoOutput.supportedFlashModes.contains(selectedFlashMode) {
                 settings.flashMode = selectedFlashMode
+            }
+
+            if let connection = self.photoOutput.connection(with: .video) {
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = videoOrientation
+                }
             }
 
             let processor = PhotoCaptureProcessor { [weak self] result in
@@ -446,5 +453,42 @@ final class CameraManager: NSObject, ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.errorMessage = message
         }
+    }
+
+    private func currentVideoOrientation() -> AVCaptureVideoOrientation {
+        let deviceOrientation = UIDevice.current.orientation
+        if deviceOrientation.isPortrait || deviceOrientation.isLandscape {
+            switch deviceOrientation {
+            case .portrait:
+                return .portrait
+            case .portraitUpsideDown:
+                return .portraitUpsideDown
+            case .landscapeLeft:
+                return .landscapeRight
+            case .landscapeRight:
+                return .landscapeLeft
+            default:
+                return .portrait
+            }
+        }
+        
+        // Fallback to interface orientation if device is flat/unknown
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            let interfaceOrientation = windowScene.interfaceOrientation
+            switch interfaceOrientation {
+            case .portrait:
+                return .portrait
+            case .portraitUpsideDown:
+                return .portraitUpsideDown
+            case .landscapeLeft:
+                return .landscapeLeft
+            case .landscapeRight:
+                return .landscapeRight
+            @unknown default:
+                return .portrait
+            }
+        }
+        
+        return .portrait
     }
 }

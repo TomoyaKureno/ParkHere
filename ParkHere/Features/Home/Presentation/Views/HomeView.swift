@@ -54,7 +54,7 @@ struct HomeView: View {
                             Button {
                                 showClearParkingSpotAlert = true
                             } label: {
-                                Text("Capture Parking Spot")
+                                Text("Replace Parking Spot")
                             }
                             .buttonStyle(.secondaryStyle)
                         }
