@@ -175,11 +175,11 @@ struct TrackerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-//                if isPreparingTrackingLocation || trackingLocationFailed {
-//                    trackingPreparationOverlay
-//                        .transition(.opacity)
-//                        .zIndex(10)
-//                }
+                if isPreparingTrackingLocation || trackingLocationFailed {
+                    trackingPreparationOverlay
+                        .transition(.opacity)
+                        .zIndex(10)
+                }
             }
         }
         .onAppear {
@@ -324,15 +324,20 @@ struct TrackerView: View {
 
     private var isInsideArrivalTarget: Bool {
         guard isInsideArrivalRadius else { return false }
-        guard isTrackingParkingSpot else { return true }
 
-        return isSameParkingAltitude
+        return isSameTargetAltitude
     }
 
-    private var isSameParkingAltitude: Bool {
-        guard floorDeltaMeters != nil else { return false }
+    private var isSameTargetAltitude: Bool {
+        guard let targetFloors else { return false }
 
-        return displayedFloors == 0
+        return targetFloors == 0
+    }
+
+    private var targetFloors: Int? {
+        guard let delta = floorDeltaMeters else { return nil }
+
+        return estimator.floors(deltaMeters: delta, previousFloors: displayedFloors)
     }
 
     private var isTrackingParkingSpot: Bool {
@@ -629,9 +634,9 @@ struct TrackerView: View {
     }
 
     private func updateDisplayedFloorsAndArrival() {
-        guard let delta = floorDeltaMeters else { return }
+        guard let targetFloors else { return }
 
-        displayedFloors = estimator.floors(deltaMeters: delta, previousFloors: displayedFloors)
+        displayedFloors = targetFloors
 
         guard hasPreparedTrackingLocation else { return }
 

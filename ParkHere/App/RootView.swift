@@ -43,7 +43,6 @@ struct RootView: View {
                         appCoordinator.push(.camera(retakeIndex: nil))
                     },
                     onFindParkingSpot: {
-                        landmarkStore.prepareTracking()
                         appCoordinator.push(.tracker)
                     }
                 )
