@@ -270,14 +270,17 @@ struct CameraView: View {
     }
 
     private var captureControlsSection: some View {
-        HStack {
+        HStack(spacing: 0) {
             thumbnailButton
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .center)
+
             captureButton
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .center)
+
             doneButton
+                .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity)
     }
 
     private var thumbnailButton: some View {
