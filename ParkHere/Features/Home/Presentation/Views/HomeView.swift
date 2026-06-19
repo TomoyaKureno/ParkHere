@@ -67,7 +67,7 @@ struct HomeView: View {
                             Button {
                                 viewModel.requestReplaceParkingSpot()
                             } label: {
-                                Text("Capture Parking Spot")
+                                Text("Replace Parking Spot")
                             }
                             .buttonStyle(.secondaryStyle)
                         }

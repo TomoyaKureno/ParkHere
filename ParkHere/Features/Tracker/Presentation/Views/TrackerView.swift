@@ -80,15 +80,24 @@ struct TrackerView: View {
                 VStack {
                     Spacer()
 
-                    landmarkImage
-                        .resizable()
-                        .scaledToFill()
-                        .frame(
-                            width: safeWidth,
-                            height: imageHeight + bottomSafeAreaInset
-                        )
-                        .clipped()
-                        .offset(y: bottomSafeAreaInset)
+                    Group {
+                        if let currentTrackingImage = store.currentTrackingImage {
+                            AdaptiveImageView(
+                                uiImage: currentTrackingImage,
+                                width: safeWidth,
+                                height: imageHeight + bottomSafeAreaInset,
+                                cornerRadius: 0,
+                                alignment: .top
+                            )
+                        } else {
+                            Image("imgLandmark")
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: safeWidth, height: imageHeight + bottomSafeAreaInset)
+                                .clipped()
+                        }
+                    }
+                    .offset(y: bottomSafeAreaInset)
                 }
 
                 VStack {

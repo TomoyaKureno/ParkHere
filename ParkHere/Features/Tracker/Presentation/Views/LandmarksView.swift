@@ -227,13 +227,12 @@ private struct LandmarkImageView: View {
                 .frame(width: 160)
                 .frame(maxHeight: .infinity)
         } else {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 160)
-                .frame(maxHeight: .infinity)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                AdaptiveImageView(
+                    uiImage: image,
+                    width: 160,
+                    height: 240,
+                    cornerRadius: 8
+                )
                 .overlay(alignment: .topLeading) {
                     LandmarkBadge(
                         text: label.text,
@@ -329,12 +328,12 @@ private struct LandmarkDetailSheet: View {
     }
 
     private var imageSection: some View {
-        Image(uiImage: detail.image)
-            .resizable()
-            .scaledToFill()
-            .frame(maxWidth: .infinity)
-            .frame(height: 500)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+        AdaptiveImageView(
+            uiImage: detail.image,
+            width: nil,
+            height: 500,
+            cornerRadius: 8,
+        )
     }
 }
 
