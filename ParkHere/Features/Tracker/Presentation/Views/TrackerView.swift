@@ -12,28 +12,34 @@ struct TrackerView: View {
     @ObservedObject var store: LandmarkStore
     @ObservedObject var locationManager: UserLocationManager
     @ObservedObject var altimeterManager: AltimeterManager
+    @StateObject private var viewModel: TrackerViewModel
 
     let onFoundIt: () -> Void
     let onTapBack: () -> Void
     let onTapLandmarks: (Bool) -> Void
 
-    @State private var displayedFloors = 0
-    private let estimator = FloorEstimator()
-
-    @State private var showAlert = false
-    @State private var displayedArrowDegree: CGFloat = 0
-    @State private var arrivalEnteredAt: Date?
-    @State private var isArrivalConfirmed = false
-    @State private var isPreparingTrackingLocation = true
-    @State private var hasPreparedCurrentLocation = false
-    @State private var hasPreparedTrackingLocation = false
-    @State private var trackingLocationFailed = false
-    @State private var didRequestInitialTrackingLocation = false
-    @State private var rerouteCandidate: LandmarkRerouteCandidate?
-    @State private var dismissedReroutePromptKey: ReroutePromptKey?
-    @State private var isShowingRerouteAnimation = false
-
-    private let minimumRerouteSavedDistance: CLLocationDistance = 10
+    init(
+        store: LandmarkStore,
+        locationManager: UserLocationManager,
+        altimeterManager: AltimeterManager,
+        onFoundIt: @escaping () -> Void,
+        onTapBack: @escaping () -> Void,
+        onTapLandmarks: @escaping (Bool) -> Void
+    ) {
+        self.store = store
+        self.locationManager = locationManager
+        self.altimeterManager = altimeterManager
+        self.onFoundIt = onFoundIt
+        self.onTapBack = onTapBack
+        self.onTapLandmarks = onTapLandmarks
+        _viewModel = StateObject(
+            wrappedValue: TrackerViewModel(
+                store: store,
+                locationManager: locationManager,
+                altimeterManager: altimeterManager
+            )
+        )
+    }
 
     var body: some View {
         Group {
@@ -59,10 +65,10 @@ struct TrackerView: View {
 
     private var trackerContent: some View {
         GeometryReader { geo in
-            let safeWidth = safeDimension(geo.size.width)
-            let safeHeight = safeDimension(geo.size.height)
+            let safeWidth = viewModel.safeDimension(geo.size.width)
+            let safeHeight = viewModel.safeDimension(geo.size.height)
             let topSafeAreaInset = geo.safeAreaInsets.top
-            let bottomSafeAreaInset = safeDimension(geo.safeAreaInsets.bottom)
+            let bottomSafeAreaInset = viewModel.safeDimension(geo.safeAreaInsets.bottom)
             let overlayHeight = safeHeight * 0.5
             let imageHeight = safeHeight * 0.6
             let indicatorWidth = max(1, (safeWidth / 2) - 1)
@@ -109,7 +115,7 @@ struct TrackerView: View {
 
                                 HStack(spacing: 8) {
                                     Image(systemName: AppIcon.figureWalk)
-                                    Text(distanceText)
+                                    Text(viewModel.distanceText)
                                 }
                                 .font(.title.bold())
                             }
@@ -133,7 +139,7 @@ struct TrackerView: View {
                         }
                         .frame(maxHeight: 64)
 
-                        Text(directionGuideText)
+                        Text(viewModel.directionGuideText)
                             .font(.largeTitle.bold())
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 16)
@@ -149,7 +155,7 @@ struct TrackerView: View {
                             VStack(spacing: 8) {
                                 Text("You're now heading to")
                                     .font(.headline)
-                                
+
                                 Button {
                                     onTapLandmarks(false)
                                 } label: {
@@ -170,7 +176,7 @@ struct TrackerView: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        if isTrackingParkingSpot {
+                        if viewModel.isTrackingParkingSpot {
                             foundItButton
                         }
                     }
@@ -179,13 +185,13 @@ struct TrackerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if isPreparingTrackingLocation || trackingLocationFailed {
+                if viewModel.isPreparingTrackingLocation || viewModel.trackingLocationFailed {
                     trackingPreparationOverlay
                         .transition(.opacity)
                         .zIndex(10)
                 }
 
-                if let rerouteCandidate {
+                if let rerouteCandidate = viewModel.rerouteCandidate {
                     Color.black.opacity(0.58)
                         .ignoresSafeArea()
                         .transition(.opacity)
@@ -193,230 +199,84 @@ struct TrackerView: View {
 
                     LandmarkReroutePromptView(
                         candidate: rerouteCandidate,
-                        onStay: dismissRerouteCandidate,
-                        onSwitch: confirmRerouteCandidate
+                        onStay: viewModel.dismissRerouteCandidate,
+                        onSwitch: viewModel.confirmRerouteCandidate
                     )
                     .transition(.scale.combined(with: .opacity))
                     .zIndex(21)
                 }
             }
         }
-        .onAppear {
-            locationManager.requestAccessAndStartUpdating()
-            locationManager.setBackgroundUpdates(true)
-            altimeterManager.start()
-            prepareInitialTrackingLocationIfNeeded()
-        }
-        .onDisappear {
-            locationManager.setBackgroundUpdates(false)
-            altimeterManager.stop()
-        }
+        .onAppear(perform: viewModel.onAppear)
+        .onDisappear(perform: viewModel.onDisappear)
         .onChange(of: altimeterManager.absoluteAltitude) { _, _ in
-            updateDisplayedFloorsAndArrival()
+            viewModel.updateDisplayedFloorsAndArrival()
         }
         .onChange(of: altimeterManager.relativeAltitude) { _, _ in
-            updateDisplayedFloorsAndArrival()
+            viewModel.updateDisplayedFloorsAndArrival()
         }
         .onReceive(locationManager.$currentLocation) { _ in
-            evaluateRerouteCandidateIfNeeded()
+            viewModel.evaluateRerouteCandidateIfNeeded()
         }
         .onChange(of: store.trackingTargetIndex) { _, _ in
-            displayedFloors = 0
-            rerouteCandidate = nil
-            dismissedReroutePromptKey = nil
-            resetArrivalState()
-
-            guard hasPreparedTrackingLocation else { return }
-
-            updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
-            updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
+            viewModel.handleTrackingTargetChanged()
         }
-        .onChange(of: isInsideArrivalRadius) { _, newValue in
-            guard hasPreparedTrackingLocation else { return }
-
-            updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
-
-            if !isInsideArrivalTarget {
-                updateDisplayedArrowDegree(to: targetArrowDegree)
-            }
+        .onChange(of: viewModel.isInsideArrivalRadius) { _, _ in
+            viewModel.handleArrivalRadiusChanged()
         }
-        .onChange(of: isArrivalConfirmed) { _, newValue in
-            guard hasPreparedTrackingLocation else { return }
-
-            advanceLandmarkIfNeeded(isArrivalConfirmed: newValue)
+        .onChange(of: viewModel.isArrivalConfirmed) { _, newValue in
+            viewModel.handleArrivalConfirmationChanged(newValue)
         }
-        .onChange(of: directionDegree) { _, _ in
-            guard hasPreparedTrackingLocation, !isInsideArrivalTarget else { return }
-
-            updateDisplayedArrowDegree(to: targetArrowDegree)
+        .onChange(of: viewModel.directionDegree) { _, _ in
+            viewModel.handleDirectionChanged()
         }
         .onChange(of: locationManager.heading?.headingAccuracy) { _, _ in
-            completeInitialTrackingPreparationIfReady()
+            viewModel.completeInitialTrackingPreparationIfReady()
         }
         .onChange(of: locationManager.needsHeadingCalibration) { _, _ in
-            completeInitialTrackingPreparationIfReady()
+            viewModel.completeInitialTrackingPreparationIfReady()
         }
-        .alert("Found your car ?", isPresented: $showAlert) {
+        .alert("Found your car ?", isPresented: $viewModel.showAlert) {
             Button("Not Yet", role: .cancel) {}
 
             Button("Done") {
-                store.clearParkingSpot()
-                resetArrivalState()
-                onFoundIt()
+                viewModel.finishFoundCar(onFoundIt: onFoundIt)
             }
         } message: {
             Text("This will clear your saved parking spot and landmark photos")
         }
     }
 
-    private var directionDegree: CGFloat {
-        locationManager.relativeBearing(to: store.currentTrackingCoordinate) ?? 0
-    }
-
-    private var hasDirection: Bool {
-        locationManager.relativeBearing(to: store.currentTrackingCoordinate) != nil
-    }
-
-    private var forwardInset: CGFloat {
-        32
-    }
-
-    private var forwardPullStrength: CGFloat {
-        0.55
-    }
-
-    private var isInsideForwardInset: Bool {
-        angularDistance(from: directionDegree, to: 0) <= forwardAlignmentInset
-    }
-
-    private var forwardAlignmentInset: CGFloat {
-        forwardInset
-    }
-
-    private var targetArrowDegree: CGFloat {
-        forwardPulledDegree(from: directionDegree)
-    }
-
-    private var normalizedArrowDegree: CGFloat {
-        normalizedDegree(displayedArrowDegree)
-    }
-
-    private var directionGuideText: String {
-        guard hasDirection else {
-            return "Getting your direction"
-        }
-
-        if isArrivalConfirmed {
-            return isTrackingParkingSpot ? "Parking spot found" : "Landmark found"
-        }
-
-        if isShowingRerouteAnimation {
-            return "Route updated"
-        }
-
-        if angularDistance(from: normalizedArrowDegree, to: 0) <= forwardAlignmentInset {
-            return "Walk straight to align the circles"
-        }
-
-        switch normalizedArrowDegree {
-        case 20..<160:
-            return "Turn and walk right to align the circles"
-        case 160...200:
-            return "Turn around to align the circles"
-        case 200..<340:
-            return "Turn and walk left to align the circles"
-        default:
-            return "Walk straight to align the circles"
-        }
-    }
-
-    private var distanceText: String {
-        locationManager.distanceText(to: store.currentTrackingCoordinate)
-    }
-
-    private var isInsideArrivalRadius: Bool {
-        locationManager.isInsideArrivalRadius(
-            targetCoordinate: store.currentTrackingCoordinate,
-            targetAccuracy: store.currentTrackingHorizontalAccuracy
-        )
-    }
-
-    private var isInsideArrivalTarget: Bool {
-        guard isInsideArrivalRadius else { return false }
-
-        return isSameTargetAltitude
-    }
-
-    private var isSameTargetAltitude: Bool {
-        guard let targetFloors else { return false }
-
-        return targetFloors == 0
-    }
-
-    private var targetFloors: Int? {
-        guard let delta = floorDeltaMeters else { return nil }
-
-        return estimator.floors(deltaMeters: delta, previousFloors: displayedFloors)
-    }
-
-    private var isTrackingParkingSpot: Bool {
-        store.isTrackingParkingSpot
-    }
-
-    private var isArcFlipped: Bool {
-        normalizedArrowDegree > 180
-    }
-
-    private var arcDegree: CGFloat {
-        isArcFlipped ? 360 - normalizedArrowDegree : normalizedArrowDegree
-    }
-
-    private var arcVisibleDegree: CGFloat {
-        max(0, arcDegree - forwardAlignmentInset * 2)
-    }
-
-    private var arcStart: CGFloat {
-        forwardAlignmentInset / 360
-    }
-
-    private var arcEnd: CGFloat {
-        (forwardAlignmentInset + arcVisibleDegree) / 360
-    }
-
-    private var shouldHideArc: Bool {
-        arcVisibleDegree <= 0
-    }
-
     private var arrowLandmark: some View {
         ZStack(alignment: .top) {
-            if isShowingRerouteAnimation {
+            if viewModel.isShowingRerouteAnimation {
                 rerouteAnimationView
-            } else if isArrivalConfirmed {
+            } else if viewModel.isArrivalConfirmed {
                 arrivalCheckmarkView
             } else {
                 Circle()
                     .fill(.white)
                     .frame(width: 16, height: 16)
-                    .opacity(isInsideForwardInset ? 0 : 1)
+                    .opacity(viewModel.isInsideForwardInset ? 0 : 1)
 
                 compassArcWithArrow
             }
         }
         .frame(width: 200, height: 200)
-            .animation(
-                .interpolatingSpring(
-                    stiffness: 120,
-                    damping: 12
-                ),
-                value: isArrivalConfirmed
-            )
-            .animation(
-                .interpolatingSpring(
-                    stiffness: 120,
-                    damping: 12
-                ),
-                value: isShowingRerouteAnimation
-            )
+        .animation(
+            .interpolatingSpring(
+                stiffness: 120,
+                damping: 12
+            ),
+            value: viewModel.isArrivalConfirmed
+        )
+        .animation(
+            .interpolatingSpring(
+                stiffness: 120,
+                damping: 12
+            ),
+            value: viewModel.isShowingRerouteAnimation
+        )
     }
 
     private var arrivalCheckmarkView: some View {
@@ -437,7 +297,7 @@ struct TrackerView: View {
 
     private var compassArcWithArrow: some View {
         Circle()
-            .trim(from: arcStart, to: arcEnd)
+            .trim(from: viewModel.arcStart, to: viewModel.arcEnd)
             .stroke(
                 .white.opacity(0.8),
                 style: StrokeStyle(
@@ -446,8 +306,8 @@ struct TrackerView: View {
                 )
             )
             .rotationEffect(.degrees(-90))
-            .scaleEffect(x: isArcFlipped ? -1 : 1)
-            .opacity(shouldHideArc ? 0 : 1)
+            .scaleEffect(x: viewModel.isArcFlipped ? -1 : 1)
+            .opacity(viewModel.shouldHideArc ? 0 : 1)
             .padding(10)
             .overlay {
                 directionArrowView
@@ -462,12 +322,12 @@ struct TrackerView: View {
             .overlay(alignment: .top) {
                 compassRotatingDot
             }
-            .rotationEffect(.degrees(displayedArrowDegree))
+            .rotationEffect(.degrees(viewModel.displayedArrowDegree))
     }
 
     private var compassRotatingDot: some View {
         Circle()
-            .fill(isInsideForwardInset ? .white : .gray)
+            .fill(viewModel.isInsideForwardInset ? .white : .gray)
             .frame(width: 16, height: 16)
     }
 
@@ -479,15 +339,11 @@ struct TrackerView: View {
         return Image("imgLandmark")
     }
 
-    private var floorDeltaMeters: Double? {
-        floorDeltaMeters(to: store.currentTrackingAltitudeAnchor)
-    }
-
     private var floorValueRow: some View {
         HStack(spacing: 8) {
-            if floorDeltaMeters != nil {
-                Image(systemName: estimator.icon(displayedFloors))
-                Text(estimator.shortLabel(displayedFloors))
+            if viewModel.floorDeltaMeters != nil {
+                Image(systemName: viewModel.floorIcon)
+                Text(viewModel.floorShortLabel)
             } else {
                 Text("--")
             }
@@ -496,7 +352,7 @@ struct TrackerView: View {
 
     private var foundItButton: some View {
         Button {
-            showAlert = true
+            viewModel.showAlert = true
         } label: {
             Text("Found it!")
         }
@@ -505,7 +361,7 @@ struct TrackerView: View {
 
     @ViewBuilder
     private var trackingPreparationOverlay: some View {
-        if trackingLocationFailed {
+        if viewModel.trackingLocationFailed {
             UnavailableView(
                 opacity: 0.96,
                 systemImage: AppIcon.locationSlash,
@@ -539,271 +395,6 @@ struct TrackerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
-
-    private func updateDisplayedArrowDegree(to targetDegree: CGFloat, animated: Bool = true) {
-        let continuousTarget = closestContinuousDegree(
-            from: displayedArrowDegree,
-            to: targetDegree
-        )
-        let update = {
-            displayedArrowDegree = continuousTarget
-        }
-
-        if animated {
-            withAnimation(
-                .interpolatingSpring(
-                    stiffness: 120,
-                    damping: 12
-                )
-            ) {
-                update()
-            }
-        } else {
-            update()
-        }
-    }
-
-    private func closestContinuousDegree(from currentDegree: CGFloat, to targetDegree: CGFloat) -> CGFloat {
-        var adjustedDegree = targetDegree
-
-        while adjustedDegree - currentDegree > 180 {
-            adjustedDegree -= 360
-        }
-
-        while currentDegree - adjustedDegree > 180 {
-            adjustedDegree += 360
-        }
-
-        return adjustedDegree
-    }
-
-    private func normalizedDegree(_ degree: CGFloat) -> CGFloat {
-        let normalized = degree.truncatingRemainder(dividingBy: 360)
-
-        return normalized >= 0 ? normalized : normalized + 360
-    }
-
-    private func angularDistance(from sourceDegree: CGFloat, to targetDegree: CGFloat) -> CGFloat {
-        let source = normalizedDegree(sourceDegree)
-        let target = normalizedDegree(targetDegree)
-        let difference = abs(source - target)
-
-        return min(difference, 360 - difference)
-    }
-
-    private func signedForwardOffset(from degree: CGFloat) -> CGFloat {
-        let normalized = normalizedDegree(degree)
-
-        return normalized > 180 ? normalized - 360 : normalized
-    }
-
-    private func forwardPulledDegree(from degree: CGFloat) -> CGFloat {
-        let signedOffset = signedForwardOffset(from: degree)
-        guard abs(signedOffset) <= forwardAlignmentInset else { return degree }
-
-        return signedOffset * (1 - forwardPullStrength)
-    }
-
-    private func safeDimension(_ value: CGFloat) -> CGFloat {
-        guard value.isFinite, value > 0 else { return 0 }
-
-        return value
-    }
-
-    private func prepareInitialTrackingLocationIfNeeded() {
-        guard !didRequestInitialTrackingLocation else { return }
-
-        didRequestInitialTrackingLocation = true
-        isPreparingTrackingLocation = true
-        hasPreparedCurrentLocation = false
-        hasPreparedTrackingLocation = false
-        trackingLocationFailed = false
-
-        locationManager.requestCurrentLocation { location in
-            let trackingLocation = location ?? locationManager.currentLocation
-            let hasUsableLocation = trackingLocation != nil || locationManager.hasUsableLocation
-
-            guard hasUsableLocation else {
-                hasPreparedTrackingLocation = false
-                isPreparingTrackingLocation = false
-                trackingLocationFailed = true
-
-                return
-            }
-
-            store.prepareTracking(from: trackingLocation)
-            hasPreparedCurrentLocation = true
-            completeInitialTrackingPreparationIfReady()
-        }
-    }
-
-    private func completeInitialTrackingPreparationIfReady() {
-        guard isPreparingTrackingLocation else { return }
-        guard hasPreparedCurrentLocation else { return }
-        guard locationManager.isHeadingCalibratedForTracking else { return }
-
-        hasPreparedTrackingLocation = true
-        trackingLocationFailed = false
-        isPreparingTrackingLocation = false
-        updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
-        updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
-    }
-
-    private func updateDisplayedFloorsAndArrival() {
-        guard let targetFloors else { return }
-
-        displayedFloors = targetFloors
-
-        guard hasPreparedTrackingLocation else { return }
-
-        updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
-        evaluateRerouteCandidateIfNeeded()
-    }
-
-    private func updateArrivalState(isInsideArrivalTarget: Bool) {
-        guard isInsideArrivalTarget else {
-            resetArrivalState()
-
-            return
-        }
-
-        guard arrivalEnteredAt == nil else { return }
-
-        let enteredAt = Date.now
-        arrivalEnteredAt = enteredAt
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            guard arrivalEnteredAt == enteredAt else { return }
-
-            isArrivalConfirmed = true
-        }
-    }
-
-    private func resetArrivalState() {
-        arrivalEnteredAt = nil
-        isArrivalConfirmed = false
-    }
-
-    private func evaluateRerouteCandidateIfNeeded() {
-        guard
-            hasPreparedTrackingLocation,
-            !isPreparingTrackingLocation,
-            !trackingLocationFailed,
-            !isArrivalConfirmed,
-            !isInsideArrivalTarget,
-            !isShowingRerouteAnimation,
-            rerouteCandidate == nil
-        else { return }
-
-        guard let candidate = store.nearestRerouteCandidate(
-            from: locationManager.currentLocation,
-            minimumSavedDistance: minimumRerouteSavedDistance,
-            isSameFloor: isSameFloorWithCurrentUser
-        ) else { return }
-
-        let promptKey = ReroutePromptKey(
-            currentTargetIndex: store.trackingTargetIndex,
-            candidateIndex: candidate.index
-        )
-
-        guard dismissedReroutePromptKey != promptKey else { return }
-
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
-            rerouteCandidate = candidate
-        }
-    }
-
-    private func dismissRerouteCandidate() {
-        guard let rerouteCandidate else { return }
-
-        dismissedReroutePromptKey = ReroutePromptKey(
-            currentTargetIndex: store.trackingTargetIndex,
-            candidateIndex: rerouteCandidate.index
-        )
-
-        withAnimation(.easeInOut(duration: 0.2)) {
-            self.rerouteCandidate = nil
-        }
-    }
-
-    private func confirmRerouteCandidate() {
-        guard let rerouteCandidate else { return }
-
-        withAnimation(.easeInOut(duration: 0.2)) {
-            self.rerouteCandidate = nil
-        }
-
-        resetArrivalState()
-        isShowingRerouteAnimation = true
-        store.rerouteTracking(to: rerouteCandidate.index)
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            isShowingRerouteAnimation = false
-            updateDisplayedArrowDegree(to: targetArrowDegree, animated: false)
-            updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
-            evaluateRerouteCandidateIfNeeded()
-        }
-    }
-
-    private func isSameFloorWithCurrentUser(_ landmark: ParkingLandmark) -> Bool {
-        guard let floors = floorsFromCurrentUser(to: landmark.altitude) else { return false }
-
-        return floors == 0
-    }
-
-    private func floorsFromCurrentUser(to anchor: AltitudeSample?) -> Int? {
-        guard let delta = floorDeltaMeters(to: anchor) else { return nil }
-
-        return estimator.floors(deltaMeters: delta, previousFloors: 0)
-    }
-
-    private func floorDeltaMeters(to anchor: AltitudeSample?) -> Double? {
-        guard let anchor else { return nil }
-
-        if let current = altimeterManager.absoluteAltitude,
-           let anchorAltitude = anchor.absoluteAltitude
-        {
-            return anchorAltitude - current
-        }
-
-        if let current = altimeterManager.relativeAltitude,
-           let anchorAltitude = anchor.relativeAltitude
-        {
-            return anchorAltitude - current
-        }
-
-        return nil
-    }
-
-    private func advanceLandmarkIfNeeded(isArrivalConfirmed: Bool) {
-        guard
-            isArrivalConfirmed,
-            !store.isTrackingParkingSpot,
-            let targetIndex = store.trackingTargetIndex
-        else { return }
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(800))
-            guard
-                self.isArrivalConfirmed,
-                self.store.trackingTargetIndex == targetIndex,
-                !self.store.isTrackingParkingSpot
-            else { return }
-
-            _ = self.store.advanceToNextTrackingTarget()
-            self.resetArrivalState()
-            self.updateArrivalState(
-                isInsideArrivalTarget: self.isInsideArrivalTarget
-            )
-        }
-    }
-}
-
-private struct ReroutePromptKey: Equatable {
-    let currentTargetIndex: Int?
-    let candidateIndex: Int
 }
 
 #Preview {

@@ -6,7 +6,6 @@
 //
 
 import AVFoundation
-import CoreLocation
 import SwiftUI
 
 struct CameraView: View {
@@ -14,26 +13,44 @@ struct CameraView: View {
     @ObservedObject var locationManager: UserLocationManager
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var altimeterManager: AltimeterManager
+    @StateObject private var viewModel: CameraViewModel
     let retakeIndex: Int?
 
     let onDone: () -> Void
     let onPop: () -> Void
     let onTapLandmarks: () -> Void
 
-    private let landmarkResolver = CurrentLandmarkResolver()
-
     @StateObject private var cameraManager = CameraManager()
     @State private var pinchStartZoom: CGFloat = 1.0
     @State private var isPinching = false
-    @State private var showDoneAlert = false
-    @State private var didFinishCapture = false
-    @State private var isSavingPreviewLandmark = false
-    @State private var isOpeningLandmarkGallery = false
     @AppStorage("hasSeenCameraOverlay") private var hasSeenCameraOverlay = false
-    @State private var showOverlay = false
-    @State private var showDiscardAlert = false
     @AppStorage("hasSeenFirstPhotoAlert") private var hasSeenFirstPhotoAlert = false
-    @State private var showFirstPhotoAlert = false
+
+    init(
+        store: LandmarkStore,
+        locationManager: UserLocationManager,
+        altimeterManager: AltimeterManager,
+        retakeIndex: Int?,
+        onDone: @escaping () -> Void,
+        onPop: @escaping () -> Void,
+        onTapLandmarks: @escaping () -> Void
+    ) {
+        self.store = store
+        self.locationManager = locationManager
+        self.altimeterManager = altimeterManager
+        self.retakeIndex = retakeIndex
+        self.onDone = onDone
+        self.onPop = onPop
+        self.onTapLandmarks = onTapLandmarks
+        _viewModel = StateObject(
+            wrappedValue: CameraViewModel(
+                store: store,
+                locationManager: locationManager,
+                altimeterManager: altimeterManager,
+                retakeIndex: retakeIndex
+            )
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -46,17 +63,14 @@ struct CameraView: View {
                 takePhotoView
             }
 
-            CameraOverlayView(isPresented: $showOverlay)
+            CameraOverlayView(isPresented: $viewModel.showOverlay)
         }
         .onAppear {
-            isOpeningLandmarkGallery = false
             pinchStartZoom = cameraManager.zoomFactor
-            cameraManager.startSession()
-            locationManager.requestAccessAndStartUpdating()
-            altimeterManager.start()
+            viewModel.onAppear(cameraManager: cameraManager)
 
             if !hasSeenCameraOverlay {
-                showOverlay = true
+                viewModel.showOverlay = true
                 hasSeenCameraOverlay = true
             }
         }
@@ -67,42 +81,37 @@ struct CameraView: View {
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
 
-            cameraManager.startSession()
+            viewModel.onScenePhaseActive(cameraManager: cameraManager)
         }
         .onDisappear {
-            cameraManager.stopSession()
-            altimeterManager.stop()
-
-            if !didFinishCapture && retakeIndex == nil && !isOpeningLandmarkGallery {
-                store.clearParkingSpot()
-            }
+            viewModel.onDisappear(cameraManager: cameraManager)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .alert("Ready to save?", isPresented: $showDoneAlert) {
+        .alert("Ready to save?", isPresented: $viewModel.showDoneAlert) {
             Button("Review Landmarks", role: .cancel) {
-                openLandmarkGallery()
+                viewModel.openLandmarkGallery(onTapLandmarks: onTapLandmarks)
             }
 
             Button("Save & Finish", role: .none) {
-                finishCapture()
+                viewModel.finishCapture(onDone: onDone)
             }
         } message: {
             Text("Make sure you've captured all the landmarks you need. You can tap the photo thumbnail to review your landmarks before saving.")
         }
-        .alert("Go back to Home?", isPresented: $showDiscardAlert) {
+        .alert("Go back to Home?", isPresented: $viewModel.showDiscardAlert) {
             Button("Stay", role: .cancel) {
-                showDiscardAlert = false
+                viewModel.showDiscardAlert = false
             }
             Button("Go Back", role: .destructive) {
-                cancelCapture()
+                viewModel.cancelCapture(onPop: onPop)
             }
         } message: {
             Text("All captured parking spot and landmark photos will be deleted.")
         }
-        .alert("Great, you have taken your first photo!", isPresented: $showFirstPhotoAlert) {
+        .alert("Great, you have taken your first photo!", isPresented: $viewModel.showFirstPhotoAlert) {
             Button("Got it!", role: .cancel) {
-                showFirstPhotoAlert = false
+                viewModel.dismissFirstPhotoAlert()
                 hasSeenFirstPhotoAlert = true
             }
         } message: {
@@ -138,11 +147,7 @@ struct CameraView: View {
         HStack(alignment: .top, spacing: 8) {
             HStack(alignment: .top, spacing: 16) {
                 Button {
-                    if store.capturedLandmarks.isEmpty {
-                        cancelCapture()
-                    } else {
-                        showDiscardAlert = true
-                    }
+                    viewModel.handleBack(onPop: onPop)
                 } label: {
                     Image(systemName: AppIcon.chevronLeft)
                         .font(.title3.weight(.semibold))
@@ -165,7 +170,7 @@ struct CameraView: View {
 
             Button {
                 withAnimation {
-                    showOverlay = true
+                    viewModel.showOverlay = true
                 }
             } label: {
                 Image(systemName: AppIcon.questionMarkCircle)
@@ -183,23 +188,11 @@ struct CameraView: View {
     }
 
     private var cameraTitle: String {
-        if retakeIndex != nil {
-            return "Retake Landmark"
-        }
-
-        return store.capturedLandmarks.isEmpty
-            ? "Capture Parking Spot"
-            : "Capture Landmark \(store.capturedLandmarks.count)"
+        viewModel.cameraTitle
     }
 
     private var cameraSubtitle: String {
-        if retakeIndex != nil {
-            return "Retake this photo to keep your route landmarks complete."
-        }
-
-        return store.capturedLandmarks.isEmpty
-            ? "Start by capturing photo around your parking spot (car or unique object)"
-            : "Capture multiple landmarks to help guide you back to your parking spot"
+        viewModel.cameraSubtitle
     }
 
     private var bottomControlsSection: some View {
@@ -225,16 +218,7 @@ struct CameraView: View {
     }
 
     private var cameraLocationStatusText: String {
-        if locationManager.currentCaptureLocation != nil {
-            return locationManager.statusText
-        }
-
-        switch locationManager.authorizationStatus {
-        case .denied, .restricted:
-            return locationManager.statusText
-        default:
-            return "Getting current location"
-        }
+        viewModel.cameraLocationStatusText
     }
 
     private var zoomButtonsSection: some View {
@@ -299,24 +283,19 @@ struct CameraView: View {
                     .frame(width: 56, height: 56)
             }
         }
-        .disabled(store.capturedLandmarks.isEmpty || retakeIndex != nil)
+        .disabled(viewModel.isThumbnailDisabled)
     }
 
     private var captureButton: some View {
-        let captureLocation = locationManager.currentCaptureLocation
-        let isBusy = cameraManager.isLoading || isSavingPreviewLandmark
-        let isCaptureUnavailable = captureLocation == nil
+        let isBusy = cameraManager.isLoading || viewModel.isSavingPreviewLandmark
+        let isCaptureUnavailable = viewModel.currentCaptureLocation == nil
 
         return Button {
-            guard let captureLocation else {
-                locationManager.requestAccessAndStartUpdating()
-
-                return
-            }
-
-            cameraManager.takePhoto(location: captureLocation) { image, location in
-                saveCapturedLandmark(image: image, location: location)
-            }
+            viewModel.capturePhoto(
+                using: cameraManager,
+                shouldShowFirstPhotoAlert: !hasSeenFirstPhotoAlert,
+                onRetakeFinished: onDone
+            )
         } label: {
             ZStack {
                 Circle()
@@ -343,12 +322,12 @@ struct CameraView: View {
 
     private var doneButton: some View {
         Button {
-            showDoneAlert = true
+            viewModel.requestDoneAlert()
         } label: {
             Text("Save")
         }
         .buttonStyle(PrimaryButtonStyle(width: 80, height: 48))
-        .disabled(store.capturedLandmarks.isEmpty || !store.retakeLandmarkIDs.isEmpty || retakeIndex != nil)
+        .disabled(viewModel.isDoneDisabled)
     }
 
     private var topGradient: some View {
@@ -398,48 +377,6 @@ struct CameraView: View {
             subtitle: "Camera access is required to take the photo.",
             buttonTitle: "Open Settings"
         )
-    }
-
-    private func saveCapturedLandmark(image: UIImage, location: CLLocation?) {
-        guard !isSavingPreviewLandmark else { return }
-
-        isSavingPreviewLandmark = true
-        let altitude = altimeterManager.currentSample()
-        let landmarkID: UUID?
-
-        if let retakeIndex {
-            landmarkID = store.replaceLandmark(
-                at: retakeIndex,
-                image: image,
-                location: location,
-                landmark: .loading,
-                altitude: altitude
-            )
-            isSavingPreviewLandmark = false
-            finishCapture()
-        } else {
-            landmarkID = store.addLandmark(
-                image,
-                location: location,
-                landmark: .loading,
-                altitude: altitude
-            )
-            isSavingPreviewLandmark = false
-
-            if !hasSeenFirstPhotoAlert {
-                showFirstPhotoAlert = true
-            }
-        }
-
-        guard let landmarkID else { return }
-
-        let resolver = landmarkResolver
-        let landmarkStore = store
-
-        Task { @MainActor in
-            let landmark = await resolver.landmark(near: location)
-            landmarkStore.updateCapturedLandmark(id: landmarkID, landmark: landmark)
-        }
     }
 
     @ViewBuilder
@@ -508,24 +445,7 @@ struct CameraView: View {
         (factor * 10).rounded() / 10
     }
 
-    private func cancelCapture() {
-        if retakeIndex == nil {
-            store.clearParkingSpot()
-        }
-
-        onPop()
-    }
-
-    private func finishCapture() {
-        didFinishCapture = true
-        onDone()
-    }
-
     private func openLandmarkGallery() {
-        guard !store.capturedLandmarks.isEmpty else { return }
-
-        showDoneAlert = false
-        isOpeningLandmarkGallery = true
-        onTapLandmarks()
+        viewModel.openLandmarkGallery(onTapLandmarks: onTapLandmarks)
     }
 }
