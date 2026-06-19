@@ -132,6 +132,7 @@ final class CameraManager: NSObject, ObservableObject {
                 session.addOutput(photoOutput)
             }
 
+            photoOutput.maxPhotoQualityPrioritization = .speed
             sessionIsConfigured = true
             publishCameraCapabilities(for: camera, position: position)
         } catch {
@@ -380,6 +381,7 @@ final class CameraManager: NSObject, ObservableObject {
             guard let self else { return }
 
             let settings = AVCapturePhotoSettings()
+            settings.photoQualityPrioritization = .speed
 
             if self.photoOutput.supportedFlashModes.contains(selectedFlashMode) {
                 settings.flashMode = selectedFlashMode
@@ -392,23 +394,28 @@ final class CameraManager: NSObject, ObservableObject {
             }
 
             let processor = PhotoCaptureProcessor { [weak self] result in
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-
-                    self.isLoading = false
-                    self.photoCaptureProcessor = nil
-
-                    switch result {
-                    case .success(let data):
-                        guard let image = UIImage(data: data) else {
-                            self.errorMessage = "Failed to convert photo to image."
-
-                            return
+                switch result {
+                case .success(let data):
+                    guard let image = UIImage(data: data) else {
+                        DispatchQueue.main.async { [weak self] in
+                            self?.isLoading = false
+                            self?.photoCaptureProcessor = nil
+                            self?.errorMessage = "Failed to convert photo to image."
                         }
 
+                        return
+                    }
+
+                    DispatchQueue.main.async { [weak self] in
+                        self?.isLoading = false
+                        self?.photoCaptureProcessor = nil
                         completion(image, location)
-                    case .failure(let message):
-                        self.errorMessage = message.localizedDescription
+                    }
+                case .failure(let message):
+                    DispatchQueue.main.async { [weak self] in
+                        self?.isLoading = false
+                        self?.photoCaptureProcessor = nil
+                        self?.errorMessage = message.localizedDescription
                     }
                 }
             }

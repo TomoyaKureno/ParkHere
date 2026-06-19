@@ -5,17 +5,33 @@
 //  Created by Marzandi Zahran Affandi Leta on 04/06/26.
 //
 
-import CoreLocation
 import SwiftUI
 
 struct HomeView: View {
     @ObservedObject var store: LandmarkStore
     @ObservedObject var locationManager: UserLocationManager
+    @StateObject private var viewModel: HomeViewModel
 
     let onSaveParkingSpot: () -> Void
     let onFindParkingSpot: () -> Void
 
-    @State private var showClearParkingSpotAlert = false
+    init(
+        store: LandmarkStore,
+        locationManager: UserLocationManager,
+        onSaveParkingSpot: @escaping () -> Void,
+        onFindParkingSpot: @escaping () -> Void
+    ) {
+        self.store = store
+        self.locationManager = locationManager
+        self.onSaveParkingSpot = onSaveParkingSpot
+        self.onFindParkingSpot = onFindParkingSpot
+        _viewModel = StateObject(
+            wrappedValue: HomeViewModel(
+                store: store,
+                locationManager: locationManager
+            )
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -23,19 +39,17 @@ struct HomeView: View {
                 .ignoresSafeArea()
 
             VStack {
-                if locationManager.authorizationStatus == .denied {
+                if viewModel.isLocationUnavailable {
                     UnavailableView(
                         systemImage: "location.slash.fill",
                         title: "Location Access is Off",
                         subtitle: "Turn on your location services to save your parking spot and capture landmarks",
                         buttonTitle: "Open Settings"
                     ) {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
+                        viewModel.openSettings()
                     }
                 } else {
-                    if store.hasCompletedParkingCapture, let parkingSpot = store.capturedLandmarks.first {
+                    if let parkingSpot = viewModel.parkingSpot {
                         VStack {
                             HomeHasParkingSpotView(parkingSpotData: parkingSpot)
                         }
@@ -51,7 +65,7 @@ struct HomeView: View {
                             .buttonStyle(.primaryStyle)
 
                             Button {
-                                showClearParkingSpotAlert = true
+                                viewModel.requestReplaceParkingSpot()
                             } label: {
                                 Text("Replace Parking Spot")
                             }
@@ -60,7 +74,7 @@ struct HomeView: View {
 
                     } else {
                         HStack {
-                            HomeCurrentLocationView(landmark: locationManager.currentLandmark)
+                            HomeCurrentLocationView(landmark: viewModel.currentLandmark)
                             Spacer()
                         }
 
@@ -72,7 +86,7 @@ struct HomeView: View {
 
                         VStack(spacing: 12) {
                             Button {
-                                saveParkingSpot()
+                                viewModel.saveParkingSpot(onSaveParkingSpot: onSaveParkingSpot)
                             } label: {
                                 Text("Capture Parking Spot")
                             }
@@ -84,13 +98,11 @@ struct HomeView: View {
             .safeAreaPadding()
         }
         .onAppear {
-            locationManager.requestAccessAndStartUpdating()
+            viewModel.onAppear()
         }
-        .alert("Replace Saved Parking Spot?", isPresented: $showClearParkingSpotAlert) {
+        .alert("Replace Saved Parking Spot?", isPresented: $viewModel.showClearParkingSpotAlert) {
             Button("Replace", role: .confirm) {
-                store.clearParkingSpot()
-                showClearParkingSpotAlert = false
-                onSaveParkingSpot()
+                viewModel.confirmReplaceParkingSpot(onSaveParkingSpot: onSaveParkingSpot)
             }
             .tint(Color.brandPrimaryBlue)
             .keyboardShortcut(.defaultAction)
@@ -99,13 +111,6 @@ struct HomeView: View {
         } message: {
             Text("This will delete your current parking spot and all associated landmark photos.")
         }
-    }
-
-    // MARK: - Private Function
-
-    private func saveParkingSpot() {
-        store.clearLandmarks()
-        onSaveParkingSpot()
     }
 }
 

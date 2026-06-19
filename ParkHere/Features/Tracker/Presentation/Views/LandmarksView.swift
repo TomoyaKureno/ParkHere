@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LandmarksView: View {
     @ObservedObject var store: LandmarkStore
+    @StateObject private var viewModel: LandmarksViewModel
 
     let isGallery: Bool
     let currentLandmarkIndex: Int
@@ -16,12 +17,26 @@ struct LandmarksView: View {
     let onUseLandmark: (Int) -> Void
     let onRetakeLandmark: (Int) -> Void
 
-    @State private var selectedDetail: LandmarkDetail?
-    @State private var deleteRequest: LandmarkDeleteRequest?
-
-    private var orderedLandmarkIndices: [Int] {
-        let indices = Array(store.capturedLandmarks.indices)
-        return Array(indices.reversed())
+    init(
+        store: LandmarkStore,
+        isGallery: Bool,
+        currentLandmarkIndex: Int,
+        onTapBack: @escaping () -> Void,
+        onUseLandmark: @escaping (Int) -> Void,
+        onRetakeLandmark: @escaping (Int) -> Void
+    ) {
+        self.store = store
+        self.isGallery = isGallery
+        self.currentLandmarkIndex = currentLandmarkIndex
+        self.onTapBack = onTapBack
+        self.onUseLandmark = onUseLandmark
+        self.onRetakeLandmark = onRetakeLandmark
+        _viewModel = StateObject(
+            wrappedValue: LandmarksViewModel(
+                store: store,
+                isGallery: isGallery
+            )
+        )
     }
 
     var body: some View {
@@ -33,19 +48,16 @@ struct LandmarksView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(Array(orderedLandmarkIndices.enumerated()), id: \.element) { visualIndex, landmarkIndex in
+                        ForEach(Array(viewModel.orderedLandmarkIndices.enumerated()), id: \.element) { visualIndex, landmarkIndex in
                             LandmarkImageView(
                                 isGallery: isGallery,
                                 image: store.capturedLandmarks[landmarkIndex].image,
-                                isRetakeNeeded: store.isLandmarkRetakeNeeded(at: landmarkIndex),
+                                isRetakeNeeded: viewModel.isLandmarkRetakeNeeded(at: landmarkIndex),
                                 visualIndex: visualIndex,
-                                label: landmarkLabel(for: landmarkIndex),
+                                label: viewModel.landmarkLabel(for: landmarkIndex),
                                 currentLandmarkIndex: currentLandmarkIndex,
                                 onDelete: {
-                                    deleteRequest = LandmarkDeleteRequest(
-                                        landmarkIndex: landmarkIndex,
-                                        title: "Delete \(landmarkLabel(for: landmarkIndex).text)"
-                                    )
+                                    viewModel.requestDelete(at: landmarkIndex)
                                 },
                                 onRetake: {
                                     onRetakeLandmark(landmarkIndex)
@@ -53,7 +65,7 @@ struct LandmarksView: View {
                             )
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                showDetail(for: landmarkIndex, visualIndex: visualIndex)
+                                viewModel.showDetail(for: landmarkIndex, visualIndex: visualIndex)
                             }
                         }
                     }
@@ -62,26 +74,29 @@ struct LandmarksView: View {
             }
         }
         .navigationBarBackButtonHidden()
-        .sheet(item: $selectedDetail) { detail in
+        .sheet(item: $viewModel.selectedDetail) { detail in
             LandmarkDetailSheet(detail: detail) {
                 guard detail.selectionState.canUseLandmark else { return }
 
-                selectedDetail = nil
+                viewModel.selectedDetail = nil
                 onUseLandmark(detail.landmarkIndex)
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
         .alert(
-            deleteRequest?.title ?? "",
-            isPresented: deleteAlertBinding
+            viewModel.deleteRequest?.title ?? "",
+            isPresented: Binding(
+                get: { viewModel.isDeleteAlertPresented },
+                set: viewModel.setDeleteAlertPresented
+            )
         ) {
             Button("No", role: .cancel) {
-                deleteRequest = nil
+                viewModel.deleteRequest = nil
             }
 
             Button("Yes", role: .destructive) {
-                confirmDelete()
+                viewModel.confirmDelete()
             }
         } message: {
             Text("Are you sure you want to delete this landmark?")
@@ -93,7 +108,7 @@ struct LandmarksView: View {
             VStack {
                 Text("Your Landmarks")
                     .font(.headline)
-                Text("\(store.capturedLandmarks.count) Photos")
+                Text(viewModel.photoCountText)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.gray)
             }
@@ -112,67 +127,8 @@ struct LandmarksView: View {
         }
     }
 
-    private var deleteAlertBinding: Binding<Bool> {
-        Binding(
-            get: { deleteRequest != nil },
-            set: { isPresented in
-                if !isPresented {
-                    deleteRequest = nil
-                }
-            }
-        )
-    }
-
-    private func showDetail(for landmarkIndex: Int, visualIndex: Int) {
-        guard !isGallery else { return }
-        guard !store.isLandmarkRetakeNeeded(at: landmarkIndex) else { return }
-        guard store.capturedLandmarks.indices.contains(landmarkIndex) else { return }
-        let selectionState = store.landmarkSelectionState(for: landmarkIndex)
-        guard selectionState != .passed else { return }
-
-        let landmark = store.capturedLandmarks[landmarkIndex]
-        selectedDetail = LandmarkDetail(
-            landmarkIndex: landmarkIndex,
-            image: landmark.image,
-            title: landmarkLabel(for: landmarkIndex).text,
-            subtitle: landmark.landmark.title,
-            progressText: "\(visualIndex + 1) of \(orderedLandmarkIndices.count) points",
-            selectionState: selectionState
-        )
-    }
-
-    private func landmarkLabel(for landmarkIndex: Int) -> LandmarkBadgeInfo {
-        guard
-            let firstIndex = store.capturedLandmarks.indices.first,
-            let lastIndex = store.capturedLandmarks.indices.last
-        else {
-            return LandmarkBadgeInfo(text: "Landmark", color: .blue)
-        }
-
-        if landmarkIndex == lastIndex {
-            return LandmarkBadgeInfo(text: "Final Spot", color: .green)
-        }
-
-        if landmarkIndex == firstIndex {
-            return LandmarkBadgeInfo(text: "Parking Spot", color: .blue)
-        }
-
-        return LandmarkBadgeInfo(text: "Landmark \(landmarkIndex)", color: .blue)
-    }
-
-    private func confirmDelete() {
-        guard let deleteRequest else { return }
-
-        store.markLandmarkForRetake(at: deleteRequest.landmarkIndex)
-        self.deleteRequest = nil
-    }
-
     private func handleBack() {
-        if isGallery {
-            store.removeRetakeLandmarks()
-        }
-
-        onTapBack()
+        viewModel.handleBack(onTapBack: onTapBack)
     }
 }
 
@@ -379,48 +335,6 @@ private struct LandmarkDetailSheet: View {
             cornerRadius: 8,
         )
     }
-}
-
-private struct LandmarkDetail: Identifiable {
-    let landmarkIndex: Int
-    let image: UIImage
-    let title: String
-    let subtitle: String
-    let progressText: String
-    let selectionState: LandmarkSelectionState
-
-    var id: Int {
-        landmarkIndex
-    }
-}
-
-private extension LandmarkSelectionState {
-    var canUseLandmark: Bool {
-        self == .available
-    }
-
-    var buttonTitle: String {
-        switch self {
-        case .available:
-            return "Go to This Landmark Instead"
-        case .current:
-            return "Current Landmark"
-        case .passed:
-            return "Already Passed"
-        case .unavailable:
-            return "Unavailable"
-        }
-    }
-}
-
-private struct LandmarkDeleteRequest {
-    let landmarkIndex: Int
-    let title: String
-}
-
-private struct LandmarkBadgeInfo {
-    let text: String
-    let color: Color
 }
 
 #Preview {

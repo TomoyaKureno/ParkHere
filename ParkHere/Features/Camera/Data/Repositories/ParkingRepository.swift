@@ -119,12 +119,15 @@ final class ParkingRepository {
     }
 
     private func saveImage(_ image: UIImage, fileName: String) {
+        guard let directoryURL = try? imageDirectoryURL() else { return }
+        let fileURL = directoryURL.appendingPathComponent(fileName)
+
+        guard !fileManager.fileExists(atPath: fileURL.path) else { return }
         guard let imageData = image.jpegData(compressionQuality: 0.85) else { return }
 
         do {
-            let directoryURL = try imageDirectoryURL()
             try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-            try imageData.write(to: directoryURL.appendingPathComponent(fileName), options: .atomic)
+            try imageData.write(to: fileURL, options: .atomic)
         } catch {
             assertionFailure("Failed to save landmark image: \(error)")
         }
