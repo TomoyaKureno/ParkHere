@@ -10,7 +10,7 @@ import CoreLocation
 import Foundation
 import UIKit
 
-struct ParkingLandmark: Identifiable, Equatable {
+struct ParkingLandmark: Identifiable {
     let id: UUID
     let image: UIImage
     let latitude: Double?
@@ -56,9 +56,6 @@ struct ParkingLandmark: Identifiable, Equatable {
         self.altitude = altitude
     }
 
-    static func == (lhs: ParkingLandmark, rhs: ParkingLandmark) -> Bool {
-        lhs.id == rhs.id
-    }
 }
 
 enum LandmarkSelectionState {
@@ -269,13 +266,9 @@ final class LandmarkStore: ObservableObject {
         repository?.clearLandmarks()
     }
 
-    func prepareTracking() {
-        trackingTargetIndex = capturedLandmarks.indices.last
-    }
-
     func prepareTracking(from location: CLLocation?) {
         guard let location else {
-            prepareTracking()
+            trackingTargetIndex = capturedLandmarks.indices.last
             return
         }
 
@@ -297,10 +290,6 @@ final class LandmarkStore: ObservableObject {
         self.trackingTargetIndex = trackingTargetIndex - 1
 
         return true
-    }
-
-    func skipToParkingSpot() {
-        trackingTargetIndex = capturedLandmarks.isEmpty ? nil : 0
     }
 
     func landmarkSelectionState(for index: Int) -> LandmarkSelectionState {
@@ -325,6 +314,63 @@ final class LandmarkStore: ObservableObject {
         trackingTargetIndex = index
     }
 
+    func nearestRerouteCandidate(
+        from location: CLLocation?,
+        minimumSavedDistance: CLLocationDistance,
+        isSameFloor: (ParkingLandmark) -> Bool
+    ) -> LandmarkRerouteCandidate? {
+        guard
+            let location,
+            let trackingTargetIndex,
+            trackingTargetIndex > 0,
+            capturedLandmarks.indices.contains(trackingTargetIndex),
+            let currentTargetLocation = trackingLocation(for: trackingTargetIndex)
+        else { return nil }
+
+        let currentTargetDistance = location.distance(from: currentTargetLocation)
+
+        return capturedLandmarks.indices
+            .filter { $0 < trackingTargetIndex }
+            .compactMap { index -> (candidate: LandmarkRerouteCandidate, distance: CLLocationDistance)? in
+                let landmark = capturedLandmarks[index]
+
+                guard
+                    isSameFloor(landmark),
+                    let candidateLocation = trackingLocation(for: index)
+                else { return nil }
+
+                let candidateDistance = location.distance(from: candidateLocation)
+                let savedDistance = currentTargetDistance - candidateDistance
+
+                guard savedDistance >= minimumSavedDistance else { return nil }
+
+                return (
+                    LandmarkRerouteCandidate(
+                        index: index,
+                        image: landmark.image,
+                        title: trackingTitle(for: index),
+                        subtitle: landmark.landmark.title,
+                        savedDistance: savedDistance
+                    ),
+                    candidateDistance
+                )
+            }
+            .min { lhs, rhs in
+                lhs.distance < rhs.distance
+            }?
+            .candidate
+    }
+
+    func rerouteTracking(to index: Int) {
+        guard
+            let trackingTargetIndex,
+            capturedLandmarks.indices.contains(index),
+            index < trackingTargetIndex
+        else { return }
+
+        self.trackingTargetIndex = index
+    }
+
     private func nearestTrackingTargetIndex(from location: CLLocation) -> Int? {
         capturedLandmarks.indices
             .compactMap { index -> (index: Int, distance: CLLocationDistance)? in
@@ -341,6 +387,29 @@ final class LandmarkStore: ObservableObject {
                 lhs.distance < rhs.distance
             }?
             .index
+    }
+
+    private func trackingTitle(for index: Int) -> String {
+        guard capturedLandmarks.indices.contains(index) else { return "Landmark" }
+
+        if index == capturedLandmarks.indices.first {
+            return "Parking Spot"
+        }
+
+        if index == capturedLandmarks.indices.last {
+            return "Final Spot"
+        }
+
+        return "Landmark \(index)"
+    }
+
+    private func trackingLocation(for index: Int) -> CLLocation? {
+        guard let coordinate = trackingCoordinate(for: index) else { return nil }
+
+        return CLLocation(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
     }
 
     private func trackingCoordinate(for index: Int) -> CLLocationCoordinate2D? {

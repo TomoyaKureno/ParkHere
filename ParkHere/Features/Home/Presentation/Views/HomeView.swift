@@ -44,7 +44,6 @@ struct HomeView: View {
 
                         VStack(spacing: 12) {
                             Button {
-                                store.prepareTracking()
                                 onFindParkingSpot()
                             } label: {
                                 Text("Navigate to Car")
@@ -54,7 +53,7 @@ struct HomeView: View {
                             Button {
                                 showClearParkingSpotAlert = true
                             } label: {
-                                Text("Capture Parking Spot")
+                                Text("Replace Parking Spot")
                             }
                             .buttonStyle(.secondaryStyle)
                         }
