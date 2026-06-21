@@ -26,6 +26,8 @@ struct CameraView: View {
     @AppStorage("hasSeenFirstPhotoAlert") private var hasSeenFirstPhotoAlert = false
     @State private var showTipsSheet = false
     @State private var isShowingFlash = false
+    @State private var thumbnailScale: CGFloat = 1.0
+
 
     init(
         store: LandmarkStore,
@@ -79,6 +81,14 @@ struct CameraView: View {
         .onChange(of: viewModel.showOverlay) { oldValue, newValue in
             if oldValue == true && newValue == false {
                 viewModel.startCaptureSession(cameraManager: cameraManager)
+            }
+        }
+        .onChange(of: store.capturedLandmarks.count) { oldValue, newValue in
+            guard newValue > oldValue else { return }
+
+            thumbnailScale = 1.3
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.5, blendDuration: 0)) {
+                thumbnailScale = 1.0
             }
         }
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
@@ -292,6 +302,7 @@ struct CameraView: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 56, height: 56)
                     .clipShape(Circle())
+                    .scaleEffect(thumbnailScale)
             } else {
                 Circle()
                     .fill(Color.white.opacity(0.16))
