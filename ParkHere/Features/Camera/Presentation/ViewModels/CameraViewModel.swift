@@ -23,36 +23,25 @@ final class CameraViewModel: ObservableObject {
     private let store: LandmarkStore
     private let locationManager: UserLocationManager
     private let altimeterManager: AltimeterManager
-    private let retakeIndex: Int?
     private let landmarkResolver = CurrentLandmarkResolver()
 
     init(
         store: LandmarkStore,
         locationManager: UserLocationManager,
-        altimeterManager: AltimeterManager,
-        retakeIndex: Int?
+        altimeterManager: AltimeterManager
     ) {
         self.store = store
         self.locationManager = locationManager
         self.altimeterManager = altimeterManager
-        self.retakeIndex = retakeIndex
     }
 
     var cameraTitle: String {
-        if retakeIndex != nil {
-            return "Retake Landmark"
-        }
-
         return store.capturedLandmarks.isEmpty
             ? "Capture Parking Spot"
             : "Capture Landmark \(store.capturedLandmarks.count)"
     }
 
     var cameraSubtitle: String {
-        if retakeIndex != nil {
-            return "Retake this photo to keep your route landmarks complete."
-        }
-
         return store.capturedLandmarks.isEmpty
             ? "Start by capturing photo around your parking spot (car or unique object)"
             : "Capture multiple landmarks to help guide you back to your parking spot"
@@ -72,13 +61,11 @@ final class CameraViewModel: ObservableObject {
     }
 
     var isThumbnailDisabled: Bool {
-        store.capturedLandmarks.isEmpty || retakeIndex != nil
+        store.capturedLandmarks.isEmpty
     }
 
     var isDoneDisabled: Bool {
         store.capturedLandmarks.isEmpty
-            || !store.retakeLandmarkIDs.isEmpty
-            || retakeIndex != nil
     }
 
     var currentCaptureLocation: CLLocation? {
@@ -96,7 +83,7 @@ final class CameraViewModel: ObservableObject {
         cameraManager.stopSession()
         altimeterManager.stop()
 
-        if !didFinishCapture && retakeIndex == nil && !isOpeningLandmarkGallery {
+        if !didFinishCapture && !isOpeningLandmarkGallery {
             store.clearParkingSpot()
         }
     }
@@ -123,8 +110,7 @@ final class CameraViewModel: ObservableObject {
 
     func capturePhoto(
         using cameraManager: CameraManager,
-        shouldShowFirstPhotoAlert: Bool,
-        onRetakeFinished: @escaping () -> Void
+        shouldShowFirstPhotoAlert: Bool
     ) {
         guard let captureLocation = currentCaptureLocation else {
             locationManager.requestAccessAndStartUpdating()
@@ -135,17 +121,13 @@ final class CameraViewModel: ObservableObject {
             self?.saveCapturedLandmark(
                 image: image,
                 location: location,
-                shouldShowFirstPhotoAlert: shouldShowFirstPhotoAlert,
-                onRetakeFinished: onRetakeFinished
+                shouldShowFirstPhotoAlert: shouldShowFirstPhotoAlert
             )
         }
     }
 
     func cancelCapture(onPop: () -> Void) {
-        if retakeIndex == nil {
-            store.clearParkingSpot()
-        }
-
+        store.clearParkingSpot()
         onPop()
     }
 
@@ -165,40 +147,23 @@ final class CameraViewModel: ObservableObject {
     private func saveCapturedLandmark(
         image: UIImage,
         location: CLLocation?,
-        shouldShowFirstPhotoAlert: Bool,
-        onRetakeFinished: @escaping () -> Void
+        shouldShowFirstPhotoAlert: Bool
     ) {
         guard !isSavingPreviewLandmark else { return }
 
         isSavingPreviewLandmark = true
         let altitude = altimeterManager.currentSample()
-        let landmarkID: UUID?
+        let landmarkID = store.addLandmark(
+            image,
+            location: location,
+            landmark: .loading,
+            altitude: altitude
+        )
+        isSavingPreviewLandmark = false
 
-        if let retakeIndex {
-            landmarkID = store.replaceLandmark(
-                at: retakeIndex,
-                image: image,
-                location: location,
-                landmark: .loading,
-                altitude: altitude
-            )
-            isSavingPreviewLandmark = false
-            finishCapture(onDone: onRetakeFinished)
-        } else {
-            landmarkID = store.addLandmark(
-                image,
-                location: location,
-                landmark: .loading,
-                altitude: altitude
-            )
-            isSavingPreviewLandmark = false
-
-            if shouldShowFirstPhotoAlert {
-                showFirstPhotoAlert = true
-            }
+        if shouldShowFirstPhotoAlert {
+            showFirstPhotoAlert = true
         }
-
-        guard let landmarkID else { return }
 
         let resolver = landmarkResolver
         let landmarkStore = store

@@ -36,6 +36,9 @@ extension Color {
         ? UIColor(red: 26/255, green: 26/255, blue: 26/255, alpha: 1)
         : UIColor(red: 229/255, green: 229/255, blue: 229/255, alpha: 1)
     })
-    
+
+    static let surfaceCardWhiteSmoke = Color(red: 196/255, green: 196/255, blue: 196/255)
+    static let surfaceCardDarkGray = Color(red: 41/255, green: 42/255, blue: 46/255)
+
     static let surfaceGray = Color(red: 183/255, green: 183/255, blue: 183/255)
 }

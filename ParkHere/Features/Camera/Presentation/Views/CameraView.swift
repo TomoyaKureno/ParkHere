@@ -14,7 +14,6 @@ struct CameraView: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var altimeterManager: AltimeterManager
     @StateObject private var viewModel: CameraViewModel
-    let retakeIndex: Int?
 
     let onDone: () -> Void
     let onPop: () -> Void
@@ -30,7 +29,6 @@ struct CameraView: View {
         store: LandmarkStore,
         locationManager: UserLocationManager,
         altimeterManager: AltimeterManager,
-        retakeIndex: Int?,
         onDone: @escaping () -> Void,
         onPop: @escaping () -> Void,
         onTapLandmarks: @escaping () -> Void
@@ -38,7 +36,6 @@ struct CameraView: View {
         self.store = store
         self.locationManager = locationManager
         self.altimeterManager = altimeterManager
-        self.retakeIndex = retakeIndex
         self.onDone = onDone
         self.onPop = onPop
         self.onTapLandmarks = onTapLandmarks
@@ -46,15 +43,14 @@ struct CameraView: View {
             wrappedValue: CameraViewModel(
                 store: store,
                 locationManager: locationManager,
-                altimeterManager: altimeterManager,
-                retakeIndex: retakeIndex
+                altimeterManager: altimeterManager
             )
         )
     }
 
     var body: some View {
         ZStack {
-            Color.black
+            Color.surfacePrimaryBlack
                 .ignoresSafeArea()
 
             if altimeterManager.isMotionAccessDenied {
@@ -293,8 +289,7 @@ struct CameraView: View {
         return Button {
             viewModel.capturePhoto(
                 using: cameraManager,
-                shouldShowFirstPhotoAlert: !hasSeenFirstPhotoAlert,
-                onRetakeFinished: onDone
+                shouldShowFirstPhotoAlert: !hasSeenFirstPhotoAlert
             )
         } label: {
             ZStack {
@@ -305,7 +300,7 @@ struct CameraView: View {
                 if isBusy {
                     ProgressView()
                         .tint(.black)
-                } else if retakeIndex == nil {
+                } else {
                     Text("\(store.capturedLandmarks.count)")
                         .font(.title2)
                         .bold()

@@ -68,7 +68,6 @@ enum LandmarkSelectionState {
 @MainActor
 final class LandmarkStore: ObservableObject {
     @Published private(set) var capturedLandmarks: [ParkingLandmark] = []
-    @Published private(set) var retakeLandmarkIDs: Set<UUID> = []
     @Published private(set) var trackingTargetIndex: Int?
     
     private var repository: ParkingRepository?
@@ -130,7 +129,7 @@ final class LandmarkStore: ObservableObject {
 
         guard let currentTrackingPhotoIndex else { return "Parking Spot" }
 
-        return "Landmark \(currentTrackingPhotoIndex + 1)"
+        return "Landmark \(currentTrackingPhotoIndex)"
     }
 
     var currentTrackingProgressText: String {
@@ -174,34 +173,6 @@ final class LandmarkStore: ObservableObject {
         return capturedLandmark.id
     }
 
-    @discardableResult
-    func replaceLandmark(
-        at index: Int,
-        image: UIImage,
-        location: CLLocation?,
-        landmark: CurrentLandmark = .unavailable,
-        altitude: AltitudeSample? = nil
-    ) -> UUID? {
-        guard capturedLandmarks.indices.contains(index) else { return nil }
-
-        let previousLandmark = capturedLandmarks[index]
-        var updatedLandmarks = capturedLandmarks
-        updatedLandmarks[index] = ParkingLandmark(
-            image: image,
-            location: location,
-            landmark: landmark,
-            altitude: altitude
-        )
-        capturedLandmarks = updatedLandmarks
-
-        var updatedRetakeIDs = retakeLandmarkIDs
-        updatedRetakeIDs.remove(previousLandmark.id)
-        retakeLandmarkIDs = updatedRetakeIDs
-        persistLandmarks()
-
-        return updatedLandmarks[index].id
-    }
-
     func updateCapturedLandmark(id: UUID, landmark: CurrentLandmark) {
         guard let index = capturedLandmarks.firstIndex(where: { $0.id == id }) else { return }
 
@@ -219,49 +190,36 @@ final class LandmarkStore: ObservableObject {
         persistLandmarks()
     }
 
-    func markLandmarkForRetake(at index: Int) {
+    func deleteLandmark(at index: Int) {
         guard capturedLandmarks.indices.contains(index) else { return }
 
-        var updatedRetakeIDs = retakeLandmarkIDs
-        updatedRetakeIDs.insert(capturedLandmarks[index].id)
-        retakeLandmarkIDs = updatedRetakeIDs
-    }
-
-    func isLandmarkRetakeNeeded(at index: Int) -> Bool {
-        guard capturedLandmarks.indices.contains(index) else { return false }
-
-        return retakeLandmarkIDs.contains(capturedLandmarks[index].id)
-    }
-
-    func removeRetakeLandmarks() {
-        guard !retakeLandmarkIDs.isEmpty else { return }
-
         let oldLandmarks = capturedLandmarks
-        let removedIDs = retakeLandmarkIDs
-        let updatedLandmarks = oldLandmarks.filter { landmark in
-            !removedIDs.contains(landmark.id)
+        let removedLandmarkID = oldLandmarks[index].id
+        let targetID = trackingTargetIndex.flatMap { index in
+            oldLandmarks.indices.contains(index) ? oldLandmarks[index].id : nil
         }
 
-        if
-            let trackingTargetIndex,
-            oldLandmarks.indices.contains(trackingTargetIndex)
-        {
-            let targetID = oldLandmarks[trackingTargetIndex].id
-            self.trackingTargetIndex = updatedLandmarks.firstIndex { landmark in
+        capturedLandmarks.remove(at: index)
+
+        if targetID == removedLandmarkID {
+            trackingTargetIndex = nil
+        } else if let targetID {
+            trackingTargetIndex = capturedLandmarks.firstIndex { landmark in
                 landmark.id == targetID
             }
-        } else if trackingTargetIndex != nil {
+        } else {
             trackingTargetIndex = nil
         }
 
-        capturedLandmarks = updatedLandmarks
-        retakeLandmarkIDs = []
+        if capturedLandmarks.isEmpty {
+            trackingTargetIndex = nil
+        }
+
         persistLandmarks()
     }
 
     func clearLandmarks() {
         capturedLandmarks.removeAll()
-        retakeLandmarkIDs.removeAll()
         trackingTargetIndex = nil
         repository?.clearLandmarks()
     }
@@ -394,10 +352,6 @@ final class LandmarkStore: ObservableObject {
 
         if index == capturedLandmarks.indices.first {
             return "Parking Spot"
-        }
-
-        if index == capturedLandmarks.indices.last {
-            return "Final Spot"
         }
 
         return "Landmark \(index)"
