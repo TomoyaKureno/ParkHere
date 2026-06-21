@@ -37,8 +37,6 @@ final class CameraManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
-
-        checkPermissionAndSetup()
     }
 
     var shouldShowSettingsButton: Bool {

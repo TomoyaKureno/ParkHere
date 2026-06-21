@@ -24,6 +24,10 @@ struct CameraView: View {
     @State private var isPinching = false
     @AppStorage("hasSeenCameraOverlay") private var hasSeenCameraOverlay = false
     @AppStorage("hasSeenFirstPhotoAlert") private var hasSeenFirstPhotoAlert = false
+    @State private var showTipsSheet = false
+    @State private var isShowingFlash = false
+    @State private var thumbnailScale: CGFloat = 1.0
+
 
     init(
         store: LandmarkStore,
@@ -60,14 +64,31 @@ struct CameraView: View {
             }
 
             CameraOverlayView(isPresented: $viewModel.showOverlay)
+
+            LandmarksOverlayView(isPresented: $viewModel.showLandmarksOverlay)
         }
         .onAppear {
             pinchStartZoom = cameraManager.zoomFactor
-            viewModel.onAppear(cameraManager: cameraManager)
+            viewModel.onAppear()
 
             if !hasSeenCameraOverlay {
                 viewModel.showOverlay = true
                 hasSeenCameraOverlay = true
+            } else {
+                viewModel.startCaptureSession(cameraManager: cameraManager)
+            }
+        }
+        .onChange(of: viewModel.showOverlay) { oldValue, newValue in
+            if oldValue == true && newValue == false {
+                viewModel.startCaptureSession(cameraManager: cameraManager)
+            }
+        }
+        .onChange(of: store.capturedLandmarks.count) { oldValue, newValue in
+            guard newValue > oldValue else { return }
+
+            thumbnailScale = 1.3
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.5, blendDuration: 0)) {
+                thumbnailScale = 1.0
             }
         }
         .onChange(of: cameraManager.zoomFactor) { _, newValue in
@@ -113,6 +134,11 @@ struct CameraView: View {
         } message: {
             Text("Add more pictures as you walk further.")
         }
+        .sheet(isPresented: $showTipsSheet) {
+            TipsSheetView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private var takePhotoView: some View {
@@ -121,6 +147,11 @@ struct CameraView: View {
             
             ZStack {
                 cameraContent
+
+                if isShowingFlash {
+                    Color.black
+                        .ignoresSafeArea()
+                }
 
                 VStack {
                     headerSection(topInset: topInset)
@@ -165,9 +196,7 @@ struct CameraView: View {
             Spacer(minLength: 0)
 
             Button {
-                withAnimation {
-                    viewModel.showOverlay = true
-                }
+                showTipsSheet = true
             } label: {
                 Image(systemName: AppIcon.questionMarkCircle)
                     .font(.title3.weight(.semibold))
@@ -273,6 +302,7 @@ struct CameraView: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 56, height: 56)
                     .clipShape(Circle())
+                    .scaleEffect(thumbnailScale)
             } else {
                 Circle()
                     .fill(Color.white.opacity(0.16))
@@ -287,6 +317,13 @@ struct CameraView: View {
         let isCaptureUnavailable = viewModel.currentCaptureLocation == nil
 
         return Button {
+            isShowingFlash = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    isShowingFlash = false
+                }
+            }
+
             viewModel.capturePhoto(
                 using: cameraManager,
                 shouldShowFirstPhotoAlert: !hasSeenFirstPhotoAlert
