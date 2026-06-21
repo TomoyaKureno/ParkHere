@@ -155,7 +155,12 @@ struct TrackerView: View {
                             VStack {
                                 Text("Go to")
 
-                                floorValueRow
+                                TrackerMetricValueRow(
+                                    systemImage: viewModel.floorIcon,
+                                    text: viewModel.floorDeltaMeters != nil
+                                        ? viewModel.floorShortLabel
+                                        : "--"
+                                )
                             }
                             .foregroundStyle(.yellow)
                             .padding(.horizontal, 8)
@@ -353,17 +358,6 @@ struct TrackerView: View {
         }
 
         return Image("imgLandmark")
-    }
-
-    private var floorValueRow: some View {
-        if viewModel.floorDeltaMeters != nil {
-            TrackerMetricValueRow(
-                systemImage: viewModel.floorIcon,
-                text: viewModel.floorShortLabel
-            )
-        } else {
-            TrackerMetricValueRow(text: "--")
-        }
     }
 
     private var foundItButton: some View {
