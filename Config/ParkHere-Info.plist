@@ -8,6 +8,8 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleDisplayName</key>
+	<string>CarPin</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -19,11 +21,11 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSCameraUsageDescription</key>
-	<string>ParkHere needs camera access to let you take waypoint photos that help guide you back to your parked vehicle.</string>
+	<string>CarPin needs camera access to let you take waypoint photos that help guide you back to your parked vehicle.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>ParkHere needs access to your location to determine your current position, save parking waypoints, and guide you back to your parked vehicle.</string>
+	<string>CarPin needs access to your location to determine your current position, save parking waypoints, and guide you back to your parked vehicle.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>ParkHere needs access to your Motion Altimeter to determine your current elevation, your Landmark elevation, and your Parking Spot elevation.</string>
+	<string>CarPin needs access to your Motion Altimeter to determine your current elevation, your Landmark elevation, and your Parking Spot elevation.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

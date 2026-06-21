@@ -1,6 +1,6 @@
 //
-//  ParkHereApp.swift
-//  ParkHere
+//  CarPinApp.swift
+//  CarPin
 //
 //  Created by Fathariq Dimas on 26/05/26.
 //
@@ -9,7 +9,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct ParkHereApp: App {
+struct CarPinApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             LandmarkRecord.self

@@ -159,14 +159,16 @@ struct TrackerView: View {
                                     systemImage: viewModel.floorIcon,
                                     text: viewModel.floorDeltaMeters != nil
                                         ? viewModel.floorShortLabel
-                                        : "--"
+                                        : "--",
+                                    lineLimit: nil,
+                                    usesAdaptiveFont: true
                                 )
                             }
                             .foregroundStyle(.yellow)
                             .padding(.horizontal, 8)
                             .frame(maxWidth: indicatorWidth)
                         }
-                        .frame(maxHeight: 64)
+                        .frame(minHeight: 64)
 
                         if viewModel.shouldShowParkingFoundButton {
                             foundItButton
