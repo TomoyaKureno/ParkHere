@@ -224,13 +224,13 @@ final class LandmarkStore: ObservableObject {
         repository?.clearLandmarks()
     }
 
-    func prepareTracking(from location: CLLocation?) {
+    func prepareTracking(from location: CLLocation?, floorsFromUser: ((ParkingLandmark) -> Int?)? = nil) {
         guard let location else {
             trackingTargetIndex = capturedLandmarks.indices.last
             return
         }
 
-        trackingTargetIndex = nearestTrackingTargetIndex(from: location)
+        trackingTargetIndex = nearestTrackingTargetIndex(from: location, floorsFromUser: floorsFromUser)
             ?? capturedLandmarks.indices.last
     }
 
@@ -329,9 +329,9 @@ final class LandmarkStore: ObservableObject {
         self.trackingTargetIndex = index
     }
 
-    private func nearestTrackingTargetIndex(from location: CLLocation) -> Int? {
+    private func nearestTrackingTargetIndex(from location: CLLocation, floorsFromUser: ((ParkingLandmark) -> Int?)?) -> Int? {
         capturedLandmarks.indices
-            .compactMap { index -> (index: Int, distance: CLLocationDistance)? in
+            .compactMap { index -> (index: Int, distance: CLLocationDistance, floorDelta: Int)? in
                 guard let coordinate = trackingCoordinate(for: index) else { return nil }
 
                 let targetLocation = CLLocation(
@@ -339,10 +339,16 @@ final class LandmarkStore: ObservableObject {
                     longitude: coordinate.longitude
                 )
 
-                return (index, location.distance(from: targetLocation))
+                let distance = location.distance(from: targetLocation)
+                let floorDelta = floorsFromUser.flatMap { $0(capturedLandmarks[index]) }.map { abs($0) } ?? Int.max
+
+                return (index, distance, floorDelta)
             }
             .min { lhs, rhs in
-                lhs.distance < rhs.distance
+                if lhs.floorDelta != rhs.floorDelta {
+                    return lhs.floorDelta < rhs.floorDelta
+                }
+                return lhs.distance < rhs.distance
             }?
             .index
     }
