@@ -390,7 +390,9 @@ final class TrackerViewModel: ObservableObject {
                 return
             }
 
-            store.prepareTracking(from: trackingLocation)
+            store.prepareTracking(from: trackingLocation) { [weak self] landmark in
+                self?.floorsFromCurrentUser(to: landmark.altitude)
+            }
             hasPreparedCurrentLocation = true
             completeInitialTrackingPreparationIfReady()
         }
