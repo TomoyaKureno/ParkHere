@@ -19,6 +19,7 @@ final class CameraViewModel: ObservableObject {
     @Published var showOverlay = false
     @Published var showDiscardAlert = false
     @Published var showFirstPhotoAlert = false
+    @Published var showLandmarksOverlay = false
 
     private let store: LandmarkStore
     private let locationManager: UserLocationManager
@@ -72,8 +73,11 @@ final class CameraViewModel: ObservableObject {
         locationManager.currentCaptureLocation
     }
 
-    func onAppear(cameraManager: CameraManager) {
+    func onAppear() {
         isOpeningLandmarkGallery = false
+    }
+
+    func startCaptureSession(cameraManager: CameraManager) {
         cameraManager.startSession()
         locationManager.requestAccessAndStartUpdating()
         altimeterManager.start()
@@ -106,6 +110,7 @@ final class CameraViewModel: ObservableObject {
 
     func dismissFirstPhotoAlert() {
         showFirstPhotoAlert = false
+        showLandmarksOverlay = true
     }
 
     func capturePhoto(
