@@ -10,17 +10,25 @@ import SwiftUI
 
 @MainActor
 final class LandmarksViewModel: ObservableObject {
-    @Published var selectedDetail: LandmarkDetail?
+    @Published var isDetailPresented = false
+    @Published var selectedDetailLandmarkIndex: Int?
     @Published var deleteRequest: LandmarkDeleteRequest?
 
     private let store: LandmarkStore
+    private let locationManager: UserLocationManager
+    private let altimeterManager: AltimeterManager
+    private let floorEstimator = FloorEstimator()
     private let isGallery: Bool
 
     init(
         store: LandmarkStore,
+        locationManager: UserLocationManager,
+        altimeterManager: AltimeterManager,
         isGallery: Bool
     ) {
         self.store = store
+        self.locationManager = locationManager
+        self.altimeterManager = altimeterManager
         self.isGallery = isGallery
     }
 
@@ -30,6 +38,10 @@ final class LandmarksViewModel: ObservableObject {
 
     var photoCountText: String {
         "\(store.capturedLandmarks.count) Photos"
+    }
+
+    var detailLandmarkIndices: [Int] {
+        orderedLandmarkIndices
     }
 
     var isDeleteAlertPresented: Bool {
@@ -42,10 +54,6 @@ final class LandmarksViewModel: ObservableObject {
         }
     }
 
-    func isLandmarkRetakeNeeded(at index: Int) -> Bool {
-        store.isLandmarkRetakeNeeded(at: index)
-    }
-
     func requestDelete(at landmarkIndex: Int) {
         deleteRequest = LandmarkDeleteRequest(
             landmarkIndex: landmarkIndex,
@@ -54,33 +62,38 @@ final class LandmarksViewModel: ObservableObject {
     }
 
     func showDetail(for landmarkIndex: Int, visualIndex: Int) {
-        guard !isGallery else { return }
-        guard !store.isLandmarkRetakeNeeded(at: landmarkIndex) else { return }
         guard store.capturedLandmarks.indices.contains(landmarkIndex) else { return }
-        let selectionState = store.landmarkSelectionState(for: landmarkIndex)
-        guard selectionState != .passed else { return }
 
-        let landmark = store.capturedLandmarks[landmarkIndex]
-        selectedDetail = LandmarkDetail(
-            landmarkIndex: landmarkIndex,
-            image: landmark.image,
-            title: landmarkLabel(for: landmarkIndex).text,
-            subtitle: landmark.landmark.title,
-            progressText: "\(visualIndex + 1) of \(orderedLandmarkIndices.count) points",
-            selectionState: selectionState
-        )
+        selectedDetailLandmarkIndex = landmarkIndex
+        isDetailPresented = true
+    }
+
+    func detail(for landmarkIndex: Int) -> LandmarkDetail? {
+        guard let visualIndex = orderedLandmarkIndices.firstIndex(of: landmarkIndex) else { return nil }
+
+        return detail(for: landmarkIndex, visualIndex: visualIndex)
+    }
+
+    func visualIndex(for landmarkIndex: Int) -> Int? {
+        orderedLandmarkIndices.firstIndex(of: landmarkIndex)
+    }
+
+    func selectDetail(at landmarkIndex: Int) {
+        guard store.capturedLandmarks.indices.contains(landmarkIndex) else { return }
+
+        selectedDetailLandmarkIndex = landmarkIndex
+    }
+
+    func clearDetailSelection() {
+        isDetailPresented = false
+        selectedDetailLandmarkIndex = nil
     }
 
     func landmarkLabel(for landmarkIndex: Int) -> LandmarkBadgeInfo {
         guard
-            let firstIndex = store.capturedLandmarks.indices.first,
-            let lastIndex = store.capturedLandmarks.indices.last
+            let firstIndex = store.capturedLandmarks.indices.first
         else {
             return LandmarkBadgeInfo(text: "Landmark", color: .blue)
-        }
-
-        if landmarkIndex == lastIndex {
-            return LandmarkBadgeInfo(text: "Final Spot", color: .green)
         }
 
         if landmarkIndex == firstIndex {
@@ -90,18 +103,62 @@ final class LandmarksViewModel: ObservableObject {
         return LandmarkBadgeInfo(text: "Landmark \(landmarkIndex)", color: .blue)
     }
 
+    func distanceText(for landmarkIndex: Int) -> String {
+        guard store.capturedLandmarks.indices.contains(landmarkIndex) else { return "-- m" }
+
+        return locationManager.distanceText(to: store.capturedLandmarks[landmarkIndex].coordinate)
+    }
+
+    func floorText(for landmarkIndex: Int) -> String {
+        guard
+            store.capturedLandmarks.indices.contains(landmarkIndex),
+            let delta = floorDeltaMeters(to: store.capturedLandmarks[landmarkIndex].altitude)
+        else { return "--" }
+
+        let floors = floorEstimator.floors(deltaMeters: delta, previousFloors: 0)
+        return floorEstimator.shortLabel(floors)
+    }
+
     func confirmDelete() {
         guard let deleteRequest else { return }
 
-        store.markLandmarkForRetake(at: deleteRequest.landmarkIndex)
+        store.deleteLandmark(at: deleteRequest.landmarkIndex)
         self.deleteRequest = nil
     }
 
     func handleBack(onTapBack: () -> Void) {
-        if isGallery {
-            store.removeRetakeLandmarks()
+        onTapBack()
+    }
+
+    private func detail(for landmarkIndex: Int, visualIndex: Int) -> LandmarkDetail? {
+        guard store.capturedLandmarks.indices.contains(landmarkIndex) else { return nil }
+
+        let landmark = store.capturedLandmarks[landmarkIndex]
+        return LandmarkDetail(
+            landmarkIndex: landmarkIndex,
+            image: landmark.image,
+            title: landmarkLabel(for: landmarkIndex).text,
+            subtitle: landmark.landmark.title,
+            progressText: "\(visualIndex + 1) of \(orderedLandmarkIndices.count) points",
+            selectionState: store.landmarkSelectionState(for: landmarkIndex)
+        )
+    }
+
+    private func floorDeltaMeters(to anchor: AltitudeSample?) -> Double? {
+        guard let anchor else { return nil }
+
+        if let current = altimeterManager.absoluteAltitude,
+           let anchorAltitude = anchor.absoluteAltitude
+        {
+            return anchorAltitude - current
         }
 
-        onTapBack()
+        if let current = altimeterManager.relativeAltitude,
+           let anchorAltitude = anchor.relativeAltitude
+        {
+            return anchorAltitude - current
+        }
+
+        return nil
     }
 }

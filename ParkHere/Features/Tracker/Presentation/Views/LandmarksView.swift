@@ -9,31 +9,36 @@ import SwiftUI
 
 struct LandmarksView: View {
     @ObservedObject var store: LandmarkStore
+    @ObservedObject var locationManager: UserLocationManager
+    @ObservedObject var altimeterManager: AltimeterManager
     @StateObject private var viewModel: LandmarksViewModel
 
     let isGallery: Bool
     let currentLandmarkIndex: Int
     let onTapBack: () -> Void
     let onUseLandmark: (Int) -> Void
-    let onRetakeLandmark: (Int) -> Void
 
     init(
         store: LandmarkStore,
+        locationManager: UserLocationManager,
+        altimeterManager: AltimeterManager,
         isGallery: Bool,
         currentLandmarkIndex: Int,
         onTapBack: @escaping () -> Void,
-        onUseLandmark: @escaping (Int) -> Void,
-        onRetakeLandmark: @escaping (Int) -> Void
+        onUseLandmark: @escaping (Int) -> Void
     ) {
         self.store = store
+        self.locationManager = locationManager
+        self.altimeterManager = altimeterManager
         self.isGallery = isGallery
         self.currentLandmarkIndex = currentLandmarkIndex
         self.onTapBack = onTapBack
         self.onUseLandmark = onUseLandmark
-        self.onRetakeLandmark = onRetakeLandmark
         _viewModel = StateObject(
             wrappedValue: LandmarksViewModel(
                 store: store,
+                locationManager: locationManager,
+                altimeterManager: altimeterManager,
                 isGallery: isGallery
             )
         )
@@ -52,15 +57,13 @@ struct LandmarksView: View {
                             LandmarkImageView(
                                 isGallery: isGallery,
                                 image: store.capturedLandmarks[landmarkIndex].image,
-                                isRetakeNeeded: viewModel.isLandmarkRetakeNeeded(at: landmarkIndex),
                                 visualIndex: visualIndex,
                                 label: viewModel.landmarkLabel(for: landmarkIndex),
+                                distanceText: viewModel.distanceText(for: landmarkIndex),
+                                floorText: viewModel.floorText(for: landmarkIndex),
                                 currentLandmarkIndex: currentLandmarkIndex,
                                 onDelete: {
                                     viewModel.requestDelete(at: landmarkIndex)
-                                },
-                                onRetake: {
-                                    onRetakeLandmark(landmarkIndex)
                                 }
                             )
                             .contentShape(Rectangle())
@@ -74,15 +77,27 @@ struct LandmarksView: View {
             }
         }
         .navigationBarBackButtonHidden()
-        .sheet(item: $viewModel.selectedDetail) { detail in
-            LandmarkDetailSheet(detail: detail) {
-                guard detail.selectionState.canUseLandmark else { return }
-
-                viewModel.selectedDetail = nil
-                onUseLandmark(detail.landmarkIndex)
+        .sheet(isPresented: $viewModel.isDetailPresented, onDismiss: viewModel.clearDetailSelection) {
+            if let initialLandmarkIndex = viewModel.selectedDetailLandmarkIndex {
+                LandmarkDetailPagerSheet(
+                    viewModel: viewModel,
+                    selectedLandmarkIndex: Binding(
+                        get: {
+                            viewModel.selectedDetailLandmarkIndex ?? initialLandmarkIndex
+                        },
+                        set: { landmarkIndex in
+                            viewModel.selectDetail(at: landmarkIndex)
+                        }
+                    ),
+                    allowsLandmarkSelection: !isGallery,
+                    onUseLandmark: { landmarkIndex in
+                        viewModel.clearDetailSelection()
+                        onUseLandmark(landmarkIndex)
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
         }
         .alert(
             viewModel.deleteRequest?.title ?? "",
@@ -135,12 +150,12 @@ struct LandmarksView: View {
 private struct LandmarkImageView: View {
     let isGallery: Bool
     let image: UIImage
-    let isRetakeNeeded: Bool
     let visualIndex: Int
     let label: LandmarkBadgeInfo
+    let distanceText: String
+    let floorText: String
     let currentLandmarkIndex: Int
     let onDelete: () -> Void
-    let onRetake: () -> Void
 
     var isParkingSpot: Bool {
         label.text == "Parking Spot"
@@ -157,11 +172,26 @@ private struct LandmarkImageView: View {
     }
 
     var body: some View {
-        if visualIndex == currentLandmarkIndex, !isGallery {
-            VStack(spacing: 8) {
-                HStack {
-                    landmarkIndexCircle
+        HStack(alignment: .top, spacing: 12) {
+            VStack(spacing: 4) {
+                landmarkIndexCircle
 
+                if visualIndex <= currentLandmarkIndex, !isGallery {
+                    Capsule()
+                        .fill(.clear)
+                        .frame(width: 20)
+                        .glassEffect(glassEffect, in: Capsule())
+                } else if isGallery {
+                    Capsule()
+                        .fill(.clear)
+                        .frame(width: 32, height: 2)
+                        .glassEffect(glassEffect, in: Capsule())
+                        .padding(.top, 4)
+                }
+            }
+
+            VStack {
+                if visualIndex == currentLandmarkIndex, !isGallery {
                     VStack(alignment: .leading) {
                         Text(isParkingSpot ? "You've Arrived" : "You're now heading to")
                         if !isParkingSpot {
@@ -171,169 +201,226 @@ private struct LandmarkImageView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .font(isParkingSpot ? .headline : .footnote.weight(.semibold))
+                    .frame(height: 40)
                 }
-                .frame(width: 200)
 
-                HStack(spacing: 14) {
-                    if isParkingSpot {
-                        Capsule()
-                            .fill(.clear)
-                            .frame(width: 20)
-                            .glassEffect(glassEffect, in: Capsule())
-                    }
-
+                HStack(alignment: .top, spacing: 12) {
                     landmarkImage
-                        .padding(.bottom, 8)
-                        .padding(.leading, isParkingSpot ? 0 : 40)
-                }
-                .padding(.leading, isParkingSpot ? 7 : 0)
-                .frame(maxWidth: .infinity)
-            }
-            .padding(.top, 8)
-            .frame(height: 280)
-        } else {
-            HStack(alignment: .top, spacing: 8) {
-                VStack(spacing: 4) {
-                    landmarkIndexCircle
 
-                    if visualIndex < currentLandmarkIndex, !isGallery {
-                        Capsule()
-                            .fill(.clear)
-                            .frame(width: 20)
-                            .glassEffect(glassEffect, in: Capsule())
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(label.text)
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(
+                                visualIndex <= currentLandmarkIndex && !isGallery
+                                    ? Color.surfacePrimaryBlack
+                                    : .white
+                            )
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .allowsTightening(true)
+                            .layoutPriority(1)
+
+                        if !isGallery {
+                            VStack(spacing: 12) {
+                                VStack(spacing: 8) {
+                                    Text("est.")
+
+                                    Text(distanceText)
+                                        .font(.title2.bold())
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.6)
+                                        .allowsTightening(true)
+                                        .layoutPriority(1)
+                                }
+                                .foregroundStyle(
+                                    visualIndex <= currentLandmarkIndex && !isGallery
+                                        ? Color(red: 118/255, green: 118/255, blue: 118/255)
+                                        : .white.opacity(0.7)
+                                )
+
+                                HStack {}
+                                    .frame(height: 2)
+                                    .frame(maxWidth: .infinity)
+                                    .background(.gray)
+                                    .clipShape(Capsule())
+                                    .padding(.horizontal, 16)
+
+                                VStack(spacing: 8) {
+                                    Text("Go to")
+
+                                    Text(floorText)
+                                        .font(.title2.bold())
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.6)
+                                        .allowsTightening(true)
+                                        .layoutPriority(1)
+                                }
+                                .foregroundStyle(Color(red: 241/255, green: 219/255, blue: 0/255))
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
                     }
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                landmarkImage
-                    .padding(.top, 4)
-                    .padding(.bottom, 8)
+                .padding(8)
+                .background(
+                    visualIndex <= currentLandmarkIndex && !isGallery
+                        ? Color.surfaceCardWhiteSmoke
+                        : Color.surfaceCardDarkGray
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 24))
             }
-            .frame(height: 240)
         }
+        .overlay(alignment: .topTrailing) {
+            if isGallery {
+                Button(action: onDelete) {
+                    Image(systemName: AppIcon.xMark)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.black)
+                        .padding(4)
+                        .background(.gray)
+                        .clipShape(Circle())
+                }
+                .offset(x: 4, y: -4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     private var landmarkIndexCircle: some View {
         Text("\(landmarkCircleIndex)")
-            .font(.caption.bold())
+            .font(.callout.bold())
             .foregroundStyle(.white)
-            .frame(width: 32, height: 32)
+            .frame(width: 40, height: 40)
             .glassEffect(glassEffect, in: Circle())
     }
 
-    @ViewBuilder
     private var landmarkImage: some View {
-        if isRetakeNeeded {
-            LandmarkRetakePlaceholder(onRetake: onRetake)
-                .frame(width: 160)
-                .frame(maxHeight: .infinity)
-        } else {
-                AdaptiveImageView(
-                    uiImage: image,
-                    width: 160,
-                    height: 240,
-                    cornerRadius: 8
-                )
-                .overlay(alignment: .topLeading) {
-                    LandmarkBadge(
-                        text: label.text,
-                        color: label.color
-                    )
-                }
-                .overlay(alignment: .topTrailing) {
-                    if isGallery {
-                        Button(action: onDelete) {
-                            Image(systemName: AppIcon.xMark)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.black)
-                                .padding(4)
-                                .background(.gray)
-                                .clipShape(Circle())
-                        }
-                        .offset(x: 6, y: -6)
-                    }
-                }
-                .overlay {
-                    if visualIndex < currentLandmarkIndex, !isGallery {
-                        Color.white.opacity(0.3)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-        }
+        AdaptiveImageView(
+            uiImage: image,
+            width: 142,
+            height: 224,
+            cornerRadius: 16,
+            alignment: .center,
+            backgroundColor: Color(red: 11/255, green: 11/255, blue: 11/255)
+        )
     }
 }
 
-private struct LandmarkRetakePlaceholder: View {
-    let onRetake: () -> Void
-
-    var body: some View {
-        Button(action: onRetake) {
-            VStack(spacing: 8) {
-                Image(systemName: AppIcon.camera)
-                    .font(.title3.weight(.semibold))
-                Text("Retake the photo")
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(.white.opacity(0.72))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(.white.opacity(0.7), lineWidth: 2)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct LandmarkDetailSheet: View {
-    let detail: LandmarkDetail
-    let onUseLandmark: () -> Void
+private struct LandmarkDetailPagerSheet: View {
+    @ObservedObject var viewModel: LandmarksViewModel
+    @Binding var selectedLandmarkIndex: Int
+    let allowsLandmarkSelection: Bool
+    let onUseLandmark: (Int) -> Void
 
     var body: some View {
         ZStack {
             Color.surfaceSecondaryBlackSmoke.ignoresSafeArea()
 
-            VStack(spacing: 28) {
-                Text(detail.progressText)
-                    .font(.headline.bold())
+            if let detail = viewModel.detail(for: selectedLandmarkIndex) {
+                detailPage(detail)
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func detailPage(_ detail: LandmarkDetail) -> some View {
+        VStack(spacing: 28) {
+            Text(detail.progressText)
+                .font(.headline.bold())
+                .foregroundStyle(.white)
+                .padding(.top, 24)
+
+            VStack(spacing: 12) {
+                imageCarousel
+                    .frame(height: 460)
+
+                pageIndicator
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(detail.title)
+                    .font(.title3Bold)
                     .foregroundStyle(.white)
-                    .padding(.top, 16)
 
-                imageSection
+                Text(detail.subtitle)
+                    .font(.bodyBold)
+                    .foregroundStyle(.white.opacity(0.22))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(detail.title)
-                        .font(.title3Bold)
-                        .foregroundStyle(.white)
+            Spacer(minLength: 0)
 
-                    Text(detail.subtitle)
-                        .font(.bodyBold)
-                        .foregroundStyle(.white.opacity(0.22))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Spacer(minLength: 0)
-
+            if allowsLandmarkSelection {
                 Button {
-                    onUseLandmark()
+                    guard detail.selectionState.canUseLandmark else { return }
+
+                    onUseLandmark(detail.landmarkIndex)
                 } label: {
                     Text(detail.selectionState.buttonTitle)
                 }
                 .buttonStyle(.primaryStyle)
                 .disabled(!detail.selectionState.canUseLandmark)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
         }
-        .preferredColorScheme(.dark)
+        .padding(.horizontal, 32)
+        .padding(.bottom, 24)
     }
 
-    private var imageSection: some View {
-        AdaptiveImageView(
-            uiImage: detail.image,
-            width: nil,
-            height: 500,
-            cornerRadius: 8,
-        )
+    private var imageCarousel: some View {
+        GeometryReader { proxy in
+            let pageSize = proxy.size
+            let selectedPage = Binding<Int?> {
+                selectedLandmarkIndex
+            } set: { landmarkIndex in
+                guard let landmarkIndex else { return }
+
+                selectedLandmarkIndex = landmarkIndex
+            }
+
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 0) {
+                    ForEach(viewModel.detailLandmarkIndices, id: \.self) { landmarkIndex in
+                        if let detail = viewModel.detail(for: landmarkIndex) {
+                            AdaptiveImageView(
+                                uiImage: detail.image,
+                                width: pageSize.width,
+                                height: pageSize.height,
+                                cornerRadius: 8
+                            )
+                            .frame(width: pageSize.width, height: pageSize.height)
+                            .clipped()
+                            .id(landmarkIndex)
+                        }
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: selectedPage)
+            .contentMargins(0, for: .scrollContent)
+            .frame(width: pageSize.width, height: pageSize.height)
+            .clipped()
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var pageIndicator: some View {
+        HStack(spacing: 6) {
+            ForEach(viewModel.detailLandmarkIndices, id: \.self) { landmarkIndex in
+                Circle()
+                    .fill(
+                        landmarkIndex == selectedLandmarkIndex
+                            ? Color.white
+                            : Color.white.opacity(0.28)
+                    )
+                    .frame(width: 7, height: 7)
+            }
+        }
+        .frame(height: 12)
     }
 }
 
@@ -346,10 +433,11 @@ private struct LandmarkDetailSheet: View {
 
     return LandmarksView(
         store: store,
+        locationManager: UserLocationManager(),
+        altimeterManager: AltimeterManager(),
         isGallery: false,
-        currentLandmarkIndex: 3
+        currentLandmarkIndex: 1
     ) {} onUseLandmark: { _ in
-    } onRetakeLandmark: { _ in
     }
     .preferredColorScheme(.dark)
 }

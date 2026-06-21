@@ -67,9 +67,7 @@ struct TrackerView: View {
         GeometryReader { geo in
             let safeWidth = viewModel.safeDimension(geo.size.width)
             let safeHeight = viewModel.safeDimension(geo.size.height)
-            let topSafeAreaInset = geo.safeAreaInsets.top
             let bottomSafeAreaInset = viewModel.safeDimension(geo.safeAreaInsets.bottom)
-            let overlayHeight = safeHeight * 0.5
             let imageHeight = safeHeight * 0.6
             let indicatorWidth = max(1, (safeWidth / 2) - 1)
 
@@ -77,17 +75,41 @@ struct TrackerView: View {
                 Color.surfacePrimaryBlack
                     .ignoresSafeArea()
 
-                VStack {
-                    Spacer()
+                VStack(spacing: 8) {
+                    Button {
+                        onTapLandmarks(false)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(store.currentTrackingTitle)
+                                .font(.title.bold())
+                                .foregroundStyle(.white)
+                            Text("Nearest landmark from your current location")
+                                .font(.footnote.bold())
+                                .foregroundStyle(
+                                    Color.white.opacity(0.64)
+                                )
+                        }
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: .leading
+                        )
 
-                    Group {
+                        Image(systemName: AppIcon.chevronRight)
+                            .font(.title3)
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.top, 8)
+                    .padding(.horizontal, 32)
+
+                    ZStack {
                         if let currentTrackingImage = store.currentTrackingImage {
                             AdaptiveImageView(
                                 uiImage: currentTrackingImage,
                                 width: safeWidth,
-                                height: imageHeight + bottomSafeAreaInset,
+                                height: imageHeight,
                                 cornerRadius: 0,
-                                alignment: .top
+                                alignment: .center,
+                                backgroundColor: Color.surfacePrimaryBlack
                             )
                         } else {
                             Image("imgLandmark")
@@ -97,38 +119,31 @@ struct TrackerView: View {
                                 .clipped()
                         }
                     }
-                    .offset(y: bottomSafeAreaInset)
-                }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .bottomTrailing) {
+                        arrowLandmark
+                            .padding(16)
+                    }
 
-                VStack {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black, location: 0.85),
-                            .init(color: .clear, location: 1)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(maxHeight: overlayHeight + topSafeAreaInset)
+                    VStack(spacing: 16) {
+                        Text(viewModel.directionGuideText)
+                            .font(.title2.bold())
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .frame(height: 56)
+                            .padding(.horizontal, 16)
 
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea()
-
-                VStack {
-                    VStack(spacing: 24) {
                         HStack(spacing: 0) {
                             VStack {
                                 Text("est.")
 
-                                HStack(spacing: 8) {
-                                    Image(systemName: AppIcon.figureWalk)
-                                    Text(viewModel.distanceText)
-                                }
-                                .font(.title.bold())
+                                TrackerMetricValueRow(
+                                    systemImage: AppIcon.figureWalk,
+                                    text: viewModel.distanceText
+                                )
                             }
                             .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
                             .frame(maxWidth: indicatorWidth)
 
                             VStack {}
@@ -138,59 +153,22 @@ struct TrackerView: View {
                                 .clipShape(Capsule())
 
                             VStack {
-                                Text("est.")
+                                Text("Go to")
 
                                 floorValueRow
-                                    .font(.title.bold())
                             }
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.yellow)
+                            .padding(.horizontal, 8)
                             .frame(maxWidth: indicatorWidth)
                         }
                         .frame(maxHeight: 64)
 
-                        Text(viewModel.directionGuideText)
-                            .font(.largeTitle.bold())
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 16)
-
-                        arrowLandmark
-                    }
-                    .padding(.vertical, 16)
-
-                    Spacer()
-
-                    VStack(spacing: 16) {
-                        HStack {
-                            VStack(spacing: 8) {
-                                Text("You're now heading to")
-                                    .font(.headline)
-
-                                Button {
-                                    onTapLandmarks(false)
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(store.currentTrackingTitle)
-                                            .font(.title.bold())
-                                        Text(store.currentTrackingProgressText)
-                                            .font(.subheadline)
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 24)
-                                }
-                                .glassEffect(.regular, in: Capsule())
-                            }
-
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        if viewModel.isTrackingParkingSpot {
+                        if viewModel.shouldShowParkingFoundButton {
                             foundItButton
+                                .padding(.horizontal, 16)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -266,12 +244,16 @@ struct TrackerView: View {
                 Circle()
                     .fill(.white)
                     .frame(width: 16, height: 16)
+                    .offset(y: 0)
                     .opacity(viewModel.isInsideForwardInset ? 0 : 1)
 
                 compassArcWithArrow
             }
         }
-        .frame(width: 200, height: 200)
+        .frame(width: 160, height: 160)
+        .padding(16)
+        .background(.black.opacity(0.6))
+        .clipShape(Circle())
         .animation(
             .interpolatingSpring(
                 stiffness: 120,
@@ -308,24 +290,49 @@ struct TrackerView: View {
         Circle()
             .trim(from: viewModel.arcStart, to: viewModel.arcEnd)
             .stroke(
-                .white.opacity(0.8),
+                .gray.opacity(0.9),
                 style: StrokeStyle(
-                    lineWidth: 16,
-                    lineCap: .round
+                    lineWidth: 4,
+                    lineCap: .round,
+                    dash: [7, 11]
                 )
             )
             .rotationEffect(.degrees(-90))
             .scaleEffect(x: viewModel.isArcFlipped ? -1 : 1)
             .opacity(viewModel.shouldHideArc ? 0 : 1)
-            .padding(10)
+            .padding(8)
+            .overlay {
+                compassArcArrowHead
+            }
             .overlay {
                 directionArrowView
             }
     }
 
+    private var compassArcArrowHead: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let radius = max(0, (size / 2) - 10)
+            let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            let angle = Angle.degrees(Double(viewModel.arcInsetDegree - 90))
+            let mirroredX: CGFloat = viewModel.isArcFlipped ? -1 : 1
+            let position = CGPoint(
+                x: center.x + CGFloat(cos(angle.radians)) * radius * mirroredX,
+                y: center.y + CGFloat(sin(angle.radians)) * radius
+            )
+
+            Image(systemName: "arrowtriangle.up.fill")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(.gray.opacity(0.95))
+                .rotationEffect(.degrees(viewModel.isArcFlipped ? 65 : -65))
+                .position(position)
+        }
+        .opacity(viewModel.shouldHideArc ? 0 : 1)
+    }
+
     private var directionArrowView: some View {
         Image(systemName: AppIcon.arrowUp)
-            .font(.system(size: 116).bold())
+            .font(.system(size: 96).bold())
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .top) {
@@ -349,13 +356,13 @@ struct TrackerView: View {
     }
 
     private var floorValueRow: some View {
-        HStack(spacing: 8) {
-            if viewModel.floorDeltaMeters != nil {
-                Image(systemName: viewModel.floorIcon)
-                Text(viewModel.floorShortLabel)
-            } else {
-                Text("--")
-            }
+        if viewModel.floorDeltaMeters != nil {
+            TrackerMetricValueRow(
+                systemImage: viewModel.floorIcon,
+                text: viewModel.floorShortLabel
+            )
+        } else {
+            TrackerMetricValueRow(text: "--")
         }
     }
 
@@ -363,7 +370,7 @@ struct TrackerView: View {
         Button {
             viewModel.showAlert = true
         } label: {
-            Text("Found it!")
+            Text("Parking Found")
         }
         .buttonStyle(.primaryStyle)
     }

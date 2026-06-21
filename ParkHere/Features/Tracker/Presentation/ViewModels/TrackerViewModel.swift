@@ -54,12 +54,16 @@ final class TrackerViewModel: ObservableObject {
         32
     }
 
+    var arcInsetDegree: CGFloat {
+        24
+    }
+
     var isInsideForwardInset: Bool {
         angularDistance(from: directionDegree, to: 0) <= forwardAlignmentInset
     }
 
     var targetArrowDegree: CGFloat {
-        forwardPulledDegree(from: directionDegree)
+        return forwardPulledDegree(from: directionDegree)
     }
 
     var normalizedArrowDegree: CGFloat {
@@ -79,20 +83,7 @@ final class TrackerViewModel: ObservableObject {
             return "Route updated"
         }
 
-        if angularDistance(from: normalizedArrowDegree, to: 0) <= forwardAlignmentInset {
-            return "Walk straight to align the circles"
-        }
-
-        switch normalizedArrowDegree {
-        case 20..<160:
-            return "Turn and walk right to align the circles"
-        case 160...200:
-            return "Turn around to align the circles"
-        case 200..<340:
-            return "Turn and walk left to align the circles"
-        default:
-            return "Walk straight to align the circles"
-        }
+        return "Match the dots to correct your direction"
     }
 
     var distanceText: String {
@@ -128,6 +119,10 @@ final class TrackerViewModel: ObservableObject {
         store.isTrackingParkingSpot
     }
 
+    var shouldShowParkingFoundButton: Bool {
+        isTrackingParkingSpot
+    }
+
     var isArcFlipped: Bool {
         normalizedArrowDegree > 180
     }
@@ -137,15 +132,15 @@ final class TrackerViewModel: ObservableObject {
     }
 
     var arcVisibleDegree: CGFloat {
-        max(0, arcDegree - forwardAlignmentInset * 2)
+        max(0, arcDegree - arcInsetDegree * 2)
     }
 
     var arcStart: CGFloat {
-        forwardAlignmentInset / 360
+        arcInsetDegree / 360
     }
 
     var arcEnd: CGFloat {
-        (forwardAlignmentInset + arcVisibleDegree) / 360
+        (arcInsetDegree + arcVisibleDegree) / 360
     }
 
     var shouldHideArc: Bool {
@@ -224,6 +219,7 @@ final class TrackerViewModel: ObservableObject {
         guard hasPreparedTrackingLocation else { return }
 
         updateArrivalState(isInsideArrivalTarget: isInsideArrivalTarget)
+        updateDisplayedArrowDegree(to: targetArrowDegree)
         evaluateRerouteCandidateIfNeeded()
     }
 

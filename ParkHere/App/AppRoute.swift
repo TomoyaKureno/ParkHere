@@ -6,7 +6,7 @@
 //
 
 enum AppRoute: Hashable {
-    case camera(retakeIndex: Int?)
+    case camera
     case tracker
     case landmark(isGallery: Bool)
 }

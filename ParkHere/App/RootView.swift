@@ -33,7 +33,7 @@ struct RootView: View {
                     store: landmarkStore,
                     locationManager: locationManager,
                     onSaveParkingSpot: {
-                        appCoordinator.push(.camera(retakeIndex: nil))
+                        appCoordinator.push(.camera)
                     },
                     onFindParkingSpot: {
                         appCoordinator.push(.tracker)
@@ -41,12 +41,11 @@ struct RootView: View {
                 )
                 .navigationDestination(for: AppRoute.self) { route in
                     switch route {
-                    case .camera(let retakeIndex):
+                    case .camera:
                         CameraView(
                             store: landmarkStore,
                             locationManager: locationManager,
-                            altimeterManager: altimeterManager,
-                            retakeIndex: retakeIndex
+                            altimeterManager: altimeterManager
                         ) {
                             appCoordinator.pop()
                         } onPop: {
@@ -69,6 +68,8 @@ struct RootView: View {
                     case .landmark(let isGallery):
                         LandmarksView(
                             store: landmarkStore,
+                            locationManager: locationManager,
+                            altimeterManager: altimeterManager,
                             isGallery: isGallery,
                             currentLandmarkIndex: currentLandmarkIndex()
                         ) {
@@ -76,8 +77,6 @@ struct RootView: View {
                         } onUseLandmark: { index in
                             landmarkStore.useLandmarkInstead(at: index)
                             appCoordinator.pop()
-                        } onRetakeLandmark: { index in
-                            appCoordinator.push(.camera(retakeIndex: index))
                         }
                     }
                 }

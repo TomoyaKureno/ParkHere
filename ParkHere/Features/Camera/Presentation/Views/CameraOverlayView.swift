@@ -14,7 +14,7 @@ struct CameraOverlayView: View {
     var body: some View {
         if isPresented {
             ZStack {
-                Color.black.opacity(0.6)
+                Color.surfacePrimaryBlackTransparent
                     .ignoresSafeArea()
                     .onTapGesture {
                         isPresented = true
