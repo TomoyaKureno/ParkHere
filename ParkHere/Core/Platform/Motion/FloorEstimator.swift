@@ -9,7 +9,10 @@ import Foundation
 
 struct FloorEstimator {
     var floorHeight: Double = 3.0
-    var hysteresis: Double = 0.6
+    // Increased from 0.6 to 1.0 (33% of floorHeight) to create a wider dead-band
+    // around each floor boundary, making the estimator more tolerant of sensor
+    // noise and the ±1–2m accuracy typical of absoluteAltitude readings.
+    var hysteresis: Double = 1.0
 
     func floors(deltaMeters: Double, previousFloors: Int) -> Int {
         let raw = deltaMeters / floorHeight
