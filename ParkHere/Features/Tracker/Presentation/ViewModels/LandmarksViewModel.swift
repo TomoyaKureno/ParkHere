@@ -147,16 +147,31 @@ final class LandmarksViewModel: ObservableObject {
     private func floorDeltaMeters(to anchor: AltitudeSample?) -> Double? {
         guard let anchor else { return nil }
 
-        if let current = altimeterManager.absoluteAltitude,
-           let anchorAltitude = anchor.absoluteAltitude
+        let accuracyThreshold = floorEstimator.floorHeight / 2
+
+        if let currentAlt = altimeterManager.absoluteAltitude,
+           let currentAcc = altimeterManager.absoluteAltitudeAccuracy,
+           currentAcc < accuracyThreshold,
+           let anchorAlt = anchor.absoluteAltitude,
+           let anchorAcc = anchor.absoluteAltitudeAccuracy,
+           anchorAcc < accuracyThreshold
         {
-            return anchorAltitude - current
+            return anchorAlt - currentAlt
         }
 
-        if let current = altimeterManager.relativeAltitude,
-           let anchorAltitude = anchor.relativeAltitude
+        if anchor.sessionID == altimeterManager.sessionID,
+           let currentRel = altimeterManager.relativeAltitude,
+           let anchorRel = anchor.relativeAltitude
         {
-            return anchorAltitude - current
+            return anchorRel - currentRel
+        }
+
+        if let anchorPressure = anchor.pressureKPa,
+           let sessionStartPressure = altimeterManager.sessionStartPressure,
+           let currentRelative = altimeterManager.relativeAltitude
+        {
+            let sessionOffset = (sessionStartPressure - anchorPressure) * 83.0
+            return sessionOffset - currentRelative
         }
 
         return nil

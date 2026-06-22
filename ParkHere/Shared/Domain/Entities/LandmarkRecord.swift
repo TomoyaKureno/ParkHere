@@ -19,8 +19,10 @@ final class LandmarkRecord {
     var landmarkTitle: String
     var landmarkSubtitle: String
     var absoluteAltitude: Double?
+    var absoluteAltitudeAccuracy: Double?
     var pressureKPa: Double?
     var relativeAltitude: Double?
+    var altitudeSessionID: UUID?
     var capturedAt: Date
 
     init(
@@ -33,8 +35,10 @@ final class LandmarkRecord {
         landmarkTitle: String,
         landmarkSubtitle: String,
         absoluteAltitude: Double? = nil,
+        absoluteAltitudeAccuracy: Double? = nil,
         pressureKPa: Double? = nil,
         relativeAltitude: Double? = nil,
+        altitudeSessionID: UUID? = nil,
         capturedAt: Date
     ) {
         self.id = id
@@ -46,8 +50,10 @@ final class LandmarkRecord {
         self.landmarkTitle = landmarkTitle
         self.landmarkSubtitle = landmarkSubtitle
         self.absoluteAltitude = absoluteAltitude
+        self.absoluteAltitudeAccuracy = absoluteAltitudeAccuracy
         self.pressureKPa = pressureKPa
         self.relativeAltitude = relativeAltitude
+        self.altitudeSessionID = altitudeSessionID
         self.capturedAt = capturedAt
     }
 }

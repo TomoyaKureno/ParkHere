@@ -9,7 +9,9 @@ import Foundation
 
 struct AltitudeSample: Equatable {
     let absoluteAltitude: Double?
+    let absoluteAltitudeAccuracy: Double?
     let pressureKPa: Double?
     let relativeAltitude: Double?
+    let sessionID: UUID
     let capturedAt: Date
 }

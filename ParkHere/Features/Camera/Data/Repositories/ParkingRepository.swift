@@ -68,8 +68,10 @@ final class ParkingRepository {
                 landmarkTitle: landmark.landmark.title,
                 landmarkSubtitle: landmark.landmark.subtitle,
                 absoluteAltitude: landmark.altitude?.absoluteAltitude,
+                absoluteAltitudeAccuracy: landmark.altitude?.absoluteAltitudeAccuracy,
                 pressureKPa: landmark.altitude?.pressureKPa,
                 relativeAltitude: landmark.altitude?.relativeAltitude,
+                altitudeSessionID: landmark.altitude?.sessionID,
                 capturedAt: landmark.capturedAt
             )
             modelContext.insert(record)
@@ -112,8 +114,10 @@ final class ParkingRepository {
 
         return AltitudeSample(
             absoluteAltitude: record.absoluteAltitude,
+            absoluteAltitudeAccuracy: record.absoluteAltitudeAccuracy,
             pressureKPa: record.pressureKPa,
             relativeAltitude: record.relativeAltitude,
+            sessionID: record.altitudeSessionID ?? UUID(),
             capturedAt: record.capturedAt
         )
     }

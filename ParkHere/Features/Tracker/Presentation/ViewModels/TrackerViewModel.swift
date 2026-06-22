@@ -438,16 +438,40 @@ final class TrackerViewModel: ObservableObject {
     private func floorDeltaMeters(to anchor: AltitudeSample?) -> Double? {
         guard let anchor else { return nil }
 
-        if let current = altimeterManager.absoluteAltitude,
-           let anchorAltitude = anchor.absoluteAltitude
+        // Priority 1: absoluteAltitude — cross-session valid, but only when both
+        // anchor and current readings have accuracy better than half a floor height.
+        // This prevents the ±1-floor error caused by GPS recalibration drift.
+        let accuracyThreshold = estimator.floorHeight / 2
+
+        if let currentAlt = altimeterManager.absoluteAltitude,
+           let currentAcc = altimeterManager.absoluteAltitudeAccuracy,
+           currentAcc < accuracyThreshold,
+           let anchorAlt = anchor.absoluteAltitude,
+           let anchorAcc = anchor.absoluteAltitudeAccuracy,
+           anchorAcc < accuracyThreshold
         {
-            return anchorAltitude - current
+            return anchorAlt - currentAlt
         }
 
-        if let current = altimeterManager.relativeAltitude,
-           let anchorAltitude = anchor.relativeAltitude
+        // Priority 2: relativeAltitude — highly precise but only valid within the
+        // same app session. The sessionID check detects whether the app was killed
+        // between parking and tracking without requiring any persistence.
+        if anchor.sessionID == altimeterManager.sessionID,
+           let currentRel = altimeterManager.relativeAltitude,
+           let anchorRel = anchor.relativeAltitude
         {
-            return anchorAltitude - current
+            return anchorRel - currentRel
+        }
+
+        // Priority 3: pressure cross-session fallback — uses the pressure recorded
+        // at session start to compute an offset into the current relativeAltitude
+        // coordinate space, enabling approximate floor detection across sessions.
+        if let anchorPressure = anchor.pressureKPa,
+           let sessionStartPressure = altimeterManager.sessionStartPressure,
+           let currentRelative = altimeterManager.relativeAltitude
+        {
+            let sessionOffset = (sessionStartPressure - anchorPressure) * 83.0
+            return sessionOffset - currentRelative
         }
 
         return nil
