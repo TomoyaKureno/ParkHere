@@ -183,11 +183,11 @@ struct TrackerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-//                if viewModel.isPreparingTrackingLocation || viewModel.trackingLocationFailed {
-//                    trackingPreparationOverlay
-//                        .transition(.opacity)
-//                        .zIndex(10)
-//                }
+                if viewModel.isPreparingTrackingLocation || viewModel.trackingLocationFailed {
+                    trackingPreparationOverlay
+                        .transition(.opacity)
+                        .zIndex(10)
+                }
 
                 if let rerouteCandidate = viewModel.rerouteCandidate {
                     Color.black.opacity(0.58)
