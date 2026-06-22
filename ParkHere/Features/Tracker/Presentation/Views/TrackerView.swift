@@ -153,15 +153,13 @@ struct TrackerView: View {
                                 .clipShape(Capsule())
 
                             VStack {
-                                Text("Go to")
+                                Text(viewModel.displayedFloors == 0 ? "You're on the" : "Go to")
 
                                 TrackerMetricValueRow(
                                     systemImage: viewModel.floorIcon,
                                     text: viewModel.floorDeltaMeters != nil
                                         ? viewModel.floorShortLabel
-                                        : "--",
-                                    lineLimit: nil,
-                                    usesAdaptiveFont: true
+                                        : "--"
                                 )
                             }
                             .foregroundStyle(.yellow)

@@ -161,6 +161,10 @@ private struct LandmarkImageView: View {
         label.text == "Parking Spot"
     }
 
+    var isSameFloor: Bool {
+        floorText == "Same Floor"
+    }
+
     private var landmarkCircleIndex: Int {
         visualIndex + 1
     }
@@ -246,7 +250,7 @@ private struct LandmarkImageView: View {
                                     .padding(.horizontal, 16)
 
                                 VStack(spacing: 8) {
-                                    Text("Go to")
+                                    Text(isSameFloor ? "You're on the" : "Go to")
 
                                     Text(floorText)
                                         .font(.title2.bold())
