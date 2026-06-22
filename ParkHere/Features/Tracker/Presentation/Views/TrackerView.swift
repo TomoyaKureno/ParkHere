@@ -99,6 +99,7 @@ struct TrackerView: View {
                             .foregroundStyle(.white)
                     }
                     .padding(.top, 8)
+                    .padding(.bottom, 16)
                     .padding(.horizontal, 32)
 
                     ZStack {
@@ -125,53 +126,58 @@ struct TrackerView: View {
                             .padding(16)
                     }
 
-                    VStack(spacing: 16) {
+                    VStack(spacing: 0) {
                         Text(viewModel.directionGuideText)
-                            .font(.title2.bold())
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .frame(height: 56)
+                            .font(.title.bold())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.4)
+                            .allowsTightening(true)
+                            .layoutPriority(1)
+                            .frame(height: 40)
+                            .padding(.vertical, 8)
                             .padding(.horizontal, 16)
 
-                        HStack(spacing: 0) {
-                            VStack {
-                                Text("est.")
+                        VStack(spacing: 20) {
+                            HStack(spacing: 0) {
+                                VStack {
+                                    Text("est.")
 
-                                TrackerMetricValueRow(
-                                    systemImage: AppIcon.figureWalk,
-                                    text: viewModel.distanceText
-                                )
+                                    TrackerMetricValueRow(
+                                        systemImage: AppIcon.figureWalk,
+                                        text: viewModel.distanceText
+                                    )
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8)
+                                .frame(maxWidth: indicatorWidth)
+
+                                VStack {}
+                                    .frame(width: 2)
+                                    .frame(maxHeight: .infinity)
+                                    .background(.gray)
+                                    .clipShape(Capsule())
+
+                                VStack {
+                                    Text(viewModel.displayedFloors == 0 ? "You're on the" : "Go to")
+
+                                    TrackerMetricValueRow(
+                                        systemImage: viewModel.floorIcon,
+                                        text: viewModel.floorDeltaMeters != nil
+                                            ? viewModel.floorShortLabel
+                                            : "--"
+                                    )
+                                }
+                                .foregroundStyle(.yellow)
+                                .padding(.horizontal, 8)
+                                .frame(maxWidth: indicatorWidth)
                             }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .frame(maxWidth: indicatorWidth)
+                            .frame(minHeight: 56)
 
-                            VStack {}
-                                .frame(width: 2)
-                                .frame(maxHeight: .infinity)
-                                .background(.gray)
-                                .clipShape(Capsule())
-
-                            VStack {
-                                Text(viewModel.displayedFloors == 0 ? "You're on the" : "Go to")
-
-                                TrackerMetricValueRow(
-                                    systemImage: viewModel.floorIcon,
-                                    text: viewModel.floorDeltaMeters != nil
-                                        ? viewModel.floorShortLabel
-                                        : "--"
-                                )
+                            if viewModel.shouldShowParkingFoundButton {
+                                foundItButton
+                                    .padding(.horizontal, 16)
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                            .foregroundStyle(.yellow)
-                            .padding(.horizontal, 8)
-                            .frame(maxWidth: indicatorWidth)
-                        }
-                        .frame(minHeight: 64)
-
-                        if viewModel.shouldShowParkingFoundButton {
-                            foundItButton
-                                .padding(.horizontal, 16)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
                 }
