@@ -89,6 +89,7 @@ struct TrackerView: View {
                                     Color.white.opacity(0.64)
                                 )
                         }
+                        .multilineTextAlignment(.leading)
                         .frame(
                             maxWidth: .infinity,
                             alignment: .leading
@@ -113,11 +114,9 @@ struct TrackerView: View {
                                 backgroundColor: Color.surfacePrimaryBlack
                             )
                         } else {
-                            Image("imgLandmark")
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: safeWidth, height: imageHeight + bottomSafeAreaInset)
-                                .clipped()
+                            Rectangle()
+                                .fill(Color.surfacePrimaryBlack)
+                                .frame(width: safeWidth, height: imageHeight)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -129,12 +128,12 @@ struct TrackerView: View {
                     VStack(spacing: 0) {
                         Text(viewModel.directionGuideText)
                             .font(.title.bold())
-                            .lineLimit(1)
+                            .lineLimit(2)
                             .minimumScaleFactor(0.4)
                             .allowsTightening(true)
                             .layoutPriority(1)
-                            .frame(height: 40)
-                            .padding(.vertical, 8)
+                            .frame(height: 64)
+                            .padding(.bottom, 8)
                             .padding(.horizontal, 16)
 
                         VStack(spacing: 20) {
@@ -256,7 +255,7 @@ struct TrackerView: View {
                     .fill(.white)
                     .frame(width: 16, height: 16)
                     .offset(y: 0)
-                    .opacity(viewModel.isInsideForwardInset ? 0 : 1)
+                    .opacity(viewModel.isInsideForwardInset || viewModel.shouldHideDirectionDots ? 0 : 1)
 
                 compassArcWithArrow
             }
@@ -310,7 +309,7 @@ struct TrackerView: View {
             )
             .rotationEffect(.degrees(-90))
             .scaleEffect(x: viewModel.isArcFlipped ? -1 : 1)
-            .opacity(viewModel.shouldHideArc ? 0 : 1)
+            .opacity(viewModel.shouldHideArc || viewModel.shouldHideDirectionDots ? 0 : 1)
             .padding(8)
             .overlay {
                 compassArcArrowHead
@@ -338,7 +337,7 @@ struct TrackerView: View {
                 .rotationEffect(.degrees(viewModel.isArcFlipped ? 65 : -65))
                 .position(position)
         }
-        .opacity(viewModel.shouldHideArc ? 0 : 1)
+        .opacity(viewModel.shouldHideArc || viewModel.shouldHideDirectionDots ? 0 : 1)
     }
 
     private var directionArrowView: some View {
@@ -356,6 +355,7 @@ struct TrackerView: View {
         Circle()
             .fill(viewModel.isInsideForwardInset ? .white : .gray)
             .frame(width: 16, height: 16)
+            .opacity(viewModel.shouldHideDirectionDots ? 0 : 1)
     }
 
     private var landmarkImage: Image {
