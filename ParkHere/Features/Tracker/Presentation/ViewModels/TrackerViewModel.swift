@@ -62,6 +62,10 @@ final class TrackerViewModel: ObservableObject {
         angularDistance(from: directionDegree, to: 0) <= forwardAlignmentInset
     }
 
+    var shouldHideDirectionDots: Bool {
+        isInsideArrivalRadius
+    }
+
     var targetArrowDegree: CGFloat {
         return forwardPulledDegree(from: directionDegree)
     }
@@ -83,7 +87,15 @@ final class TrackerViewModel: ObservableObject {
             return "Route updated"
         }
 
-        return "Match the dots to correct your direction"
+        if isInsideArrivalRadius {
+            return "You're already near to the \(trackingTargetLocationText). Take a look around"
+        }
+
+        if isInsideForwardInset {
+            return "Great! You're heading the right direction. Keep following the arrow"
+        }
+
+        return "Match the grey dots with the white dots to face the correct direction"
     }
 
     var distanceText: String {
@@ -117,6 +129,10 @@ final class TrackerViewModel: ObservableObject {
 
     var isTrackingParkingSpot: Bool {
         store.isTrackingParkingSpot
+    }
+
+    var trackingTargetLocationText: String {
+        isTrackingParkingSpot ? "parking location" : "landmark"
     }
 
     var shouldShowParkingFoundButton: Bool {
